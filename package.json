@@ -1,0 +1,10 @@
+{
+  "name": "chandni-catalog",
+  "private": true,
+  "scripts": {
+    "check:portrait": "node scripts/check-portrait.mjs",
+    "dev": "npx wrangler pages dev . --d1 CATALOG_DB=chandni-catalog",
+    "deploy": "node scripts/check-portrait.mjs && npx wrangler pages deploy . --project-name=chandni-catalog",
+    "deploy:prod": "npm run deploy"
+  }
+}

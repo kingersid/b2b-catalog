@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Swipe-Up Fingers — Prototype v2</title>
+<style>
+  :root {
+    --bg: #0b0b0e;
+    --accent: #34d399;
+    --accent-2: #f5c451;
+    --text: #eef0f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(140% 90% at 85% -10%, rgba(52,211,153,0.07), transparent 55%),
+      radial-gradient(120% 80% at 0% 110%, rgba(245,196,81,0.05), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+  header p { margin-top: 6px; font-size: 13px; color: rgba(238,240,244,0.55); }
+
+  .stage { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; }
+
+  /* ---------- phone frame ---------- */
+  .phone {
+    width: 320px;
+    border-radius: 34px;
+    overflow: hidden;
+    position: relative;
+    aspect-ratio: 9 / 18.5;
+    background: #000;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+  .phone::before { /* notch */
+    content: "";
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 24px; border-radius: 14px;
+    background: rgba(0,0,0,0.85); z-index: 20;
+  }
+  .backdrop {
+    position: absolute; inset: 0;
+    background: url("landing.webp") center/cover no-repeat;
+    filter: blur(18px) saturate(1.25) brightness(0.82);
+    transform: scale(1.12);
+  }
+  .phone .veil {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(11,11,14,0.25), rgba(11,11,14,0.55) 60%, rgba(11,11,14,0.85));
+  }
+  .brand {
+    position: absolute; top: 46px; left: 0; right: 0; text-align: center;
+    font-size: 12px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: rgba(255,255,255,0.85); text-shadow: 0 2px 10px rgba(0,0,0,0.6); z-index: 5;
+  }
+  .badge {
+    position: absolute; top: 88px; right: 14px; z-index: 6;
+    background: rgba(10,10,14,0.72); border: 1px solid rgba(255,255,255,0.16);
+    color: var(--accent-2); font-size: 9px; font-weight: 700; letter-spacing: 1.1px;
+    text-transform: uppercase; padding: 5px 10px; border-radius: 999px;
+  }
+
+  /* ---------- dark preview strip (mimics the real peek button) ---------- */
+  .peek {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 76px; z-index: 8;
+    background: linear-gradient(180deg, rgba(11,11,14,0.0), rgba(11,11,14,0.55) 40%, rgba(11,11,14,0.88));
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 12px;
+  }
+  .peek .chev {
+    position: absolute; top: 12px; left: 50%; margin-left: -11px;
+    width: 22px; height: 22px;
+    border-right: 3px solid #fff; border-bottom: 3px solid #fff;
+    transform: rotate(225deg);
+    animation: peek-bounce 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8));
+  }
+  .peek .lbl {
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #fff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.85);
+  }
+  @keyframes peek-bounce {
+    0%, 100% { transform: rotate(225deg) translateY(2px); opacity: 0.75; }
+    50%      { transform: rotate(225deg) translateY(-4px); opacity: 1; }
+  }
+
+  .label { text-align: center; margin-top: 14px; font-size: 12.5px; color: rgba(238,240,244,0.7); }
+  .label b { color: var(--accent); font-weight: 700; }
+
+  /* ============================================================
+     HINT (shared) — sits ABOVE the peek strip
+     ============================================================ */
+  .hint {
+    position: absolute;
+    left: 50%; bottom: 92px;               /* above the 76px peek strip */
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 14px;
+    color: #fff;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .hint .txt { text-align: center; text-shadow: 0 2px 12px rgba(0,0,0,0.85); }
+  .hint .txt .hi { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; line-height: 1.25; display: block; }
+  .hint .txt .en { font-size: 9.5px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase; color: rgba(255,255,255,0.75); display: block; margin-top: 4px; }
+
+  /* Flat hand, fingers together — the swipe-up gesture */
+  .hand { width: 52px; height: 66px; display: block; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.55)); }
+
+  /* ============================================================
+     VARIANT 1 — “Ripple”
+     ============================================================ */
+  .v1 { width: 210px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .v1 .orb { position: relative; width: 120px; height: 120px; display: grid; place-items: center; }
+  .v1 .glow {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle, rgba(52,211,153,0.28) 0%, rgba(52,211,153,0.10) 45%, transparent 70%);
+    animation: breathe 2.8s ease-in-out infinite;
+  }
+  .v1 .finger-box { position: relative; width: 52px; height: 66px; z-index: 2; }
+  .v1 .hand { position: absolute; left: 0; top: 0; }
+  .v1 .hand.g { opacity: 0; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.55)) blur(2.5px); }
+  .v1 .hand.g1 { animation: swipe 2.8s cubic-bezier(0.22,1,0.36,1) 0.16s infinite; }
+  .v1 .hand.g2 { animation: swipe 2.8s cubic-bezier(0.22,1,0.36,1) 0.32s infinite; }
+  .v1 .hand.main { animation: swipe 2.8s cubic-bezier(0.22,1,0.36,1) infinite; }
+  .v1 .ripple {
+    position: absolute; left: 50%; top: 14px;
+    width: 36px; height: 36px; margin-left: -18px; margin-top: -18px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(52,211,153,0.85);
+    animation: ripple 2.8s ease-out infinite;
+  }
+  @keyframes swipe {
+    0%   { transform: translateY(22px) rotate(4deg);  opacity: 0; }
+    7%   { opacity: 1; }
+    55%  { transform: translateY(-26px) rotate(-3deg); opacity: 1; }
+    72%  { transform: translateY(-26px) rotate(-3deg); opacity: 0; }
+    100% { transform: translateY(22px) rotate(4deg);  opacity: 0; }
+  }
+  @keyframes ripple {
+    0%   { transform: scale(0.35); opacity: 0.95; }
+    55%  { transform: scale(1.7); opacity: 0; }
+    100% { transform: scale(1.7); opacity: 0; }
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0.75; transform: scale(0.96); }
+    50%      { opacity: 1;    transform: scale(1.04); }
+  }
+  .v1 .chev {
+    width: 14px; height: 8px;
+    border-left: 2px solid rgba(255,255,255,0.9);
+    border-top: 2px solid rgba(255,255,255,0.9);
+    transform: rotate(45deg);
+    animation: chev-bob 2.8s ease-in-out infinite;
+    opacity: 0.85;
+  }
+  @keyframes chev-bob {
+    0%, 100% { transform: rotate(45deg) translateY(2px); opacity: 0.35; }
+    45%      { transform: rotate(45deg) translateY(-3px); opacity: 0.9; }
+  }
+  .v1 .txt .hi { animation: txt-in 2.8s ease 0.35s infinite; }
+  @keyframes txt-in {
+    0%, 6% { opacity: 0; transform: translateY(6px); }
+    20%    { opacity: 1; transform: translateY(0); }
+    88%, 100% { opacity: 0.9; }
+  }
+
+  /* ============================================================
+     VARIANT 2 — “Ghost steps”
+     ============================================================ */
+  .v2 { width: 210px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .v2 .orb { position: relative; width: 112px; height: 112px; display: grid; place-items: center; }
+  .v2 .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1.5px solid rgba(52,211,153,0.7);
+    animation: ring-pulse 2.4s ease-out infinite;
+  }
+  .v2 .hand { position: absolute; left: 50%; top: 50%; }
+  .v2 .hand.main { width: 48px; height: 60px; margin: -30px 0 0 -24px; animation: float 2.4s ease-in-out infinite; }
+  .v2 .hand.g {
+    width: 48px; height: 60px; margin: -30px 0 0 -24px;
+    opacity: 0; filter: blur(2px) drop-shadow(0 6px 14px rgba(0,0,0,0.5));
+  }
+  .v2 .hand.g1 { animation: ghost-rise 2.4s ease-out 0.42s infinite; }
+  .v2 .hand.g2 { animation: ghost-rise 2.4s ease-out 0.84s infinite; }
+  @keyframes ring-pulse {
+    0%   { transform: scale(0.78); opacity: 0.9; }
+    100% { transform: scale(1.35); opacity: 0; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(4px) rotate(3deg); }
+    50%      { transform: translateY(-6px) rotate(-2deg); }
+  }
+  @keyframes ghost-rise {
+    0%   { transform: translateY(26px) rotate(4deg); opacity: 0; }
+    18%  { opacity: 0.5; }
+    55%  { transform: translateY(-22px) rotate(-3deg); opacity: 0; }
+    100% { transform: translateY(-22px) rotate(-3deg); opacity: 0; }
+  }
+
+  /* ============================================================
+     VARIANT 3 — “Beam”
+     ============================================================ */
+  .v3 { width: 210px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .v3 .orb { position: relative; width: 120px; height: 120px; display: grid; place-items: center; }
+  .v3 .beam {
+    position: absolute; left: 50%; top: 6px; bottom: 6px; width: 28px; margin-left: -14px;
+    background: linear-gradient(180deg, transparent, rgba(52,211,153,0.34) 45%, rgba(52,211,153,0.12) 80%, transparent);
+    border-radius: 999px;
+    filter: blur(3px);
+    animation: beam-pulse 2.6s ease-in-out infinite;
+  }
+  .v3 .hand { width: 52px; height: 66px; animation: rise 2.6s cubic-bezier(0.22,1,0.36,1) infinite; z-index: 2; }
+  .v3 .spec { position: absolute; border-radius: 50%; background: rgba(245,196,81,0.9); }
+  .v3 .spec.s1 { width: 4px; height: 4px; left: 22%; top: 30%; animation: speck 2.6s linear infinite; }
+  .v3 .spec.s2 { width: 3px; height: 3px; right: 18%; top: 52%; animation: speck 2.6s linear 0.9s infinite; }
+  .v3 .spec.s3 { width: 5px; height: 5px; left: 30%; top: 66%; animation: speck 2.6s linear 1.7s infinite; }
+  @keyframes beam-pulse {
+    0%, 100% { opacity: 0.55; transform: scaleY(0.92); }
+    50%      { opacity: 1;    transform: scaleY(1.05); }
+  }
+  @keyframes rise {
+    0%   { transform: translateY(20px) rotate(4deg); opacity: 0; }
+    12%  { opacity: 1; }
+    58%  { transform: translateY(-24px) rotate(-3deg); opacity: 1; }
+    76%  { transform: translateY(-24px) rotate(-3deg); opacity: 0; }
+    100% { transform: translateY(20px) rotate(4deg); opacity: 0; }
+  }
+  @keyframes speck {
+    0%   { transform: translateY(14px); opacity: 0; }
+    25%  { opacity: 0.95; }
+    75%  { transform: translateY(-30px); opacity: 0; }
+    100% { transform: translateY(-30px); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .v1 .hand, .v1 .ripple, .v1 .glow, .v1 .chev, .v1 .txt .hi,
+    .v2 .ring, .v2 .hand, .v3 .hand, .v3 .beam, .v3 .spec { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Flat-hand glyph (fingers together + thumb), defined once, reused everywhere -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="hand" viewBox="0 0 52 66">
+      <g transform="rotate(-6 26 34)">
+        <!-- fingers together, pointing up -->
+        <rect x="16" y="4" width="20" height="30" rx="7"/>
+        <!-- finger separations (4 fingers) -->
+        <path d="M21 8 v23 M26 6 v25 M31 8 v23"
+              stroke="rgba(0,0,0,0.30)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <!-- palm -->
+        <rect x="13" y="28" width="26" height="17" rx="7"/>
+        <!-- thumb -->
+        <rect x="2" y="30" width="13" height="9" rx="4.5" transform="rotate(-14 8 34)"/>
+        <!-- wrist -->
+        <rect x="19" y="43" width="14" height="15" rx="5"/>
+        <!-- shine -->
+        <rect x="18.5" y="8" width="3.5" height="22" rx="1.75" fill="#fff" opacity="0.32"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<header>
+  <h1>Fingers swipe-up — prototype v2</h1>
+  <p>Flat-hand gesture (fingers together) · hint sits above the dark preview strip · pick one</p>
+</header>
+
+<div class="stage">
+
+  <!-- ============ VARIANT 1 ============ -->
+  <div>
+    <div class="phone">
+      <div class="backdrop"></div>
+      <div class="veil"></div>
+      <div class="brand">Chandni Silk Mills</div>
+      <div class="badge">Swipe-up hint</div>
+
+      <div class="hint">
+        <div class="v1">
+          <div class="orb">
+            <span class="glow"></span>
+            <div class="finger-box">
+              <svg class="hand g g1"><use href="#hand"/></svg>
+              <svg class="hand g g2"><use href="#hand"/></svg>
+              <svg class="hand main"><use href="#hand"/></svg>
+              <span class="ripple"></span>
+            </div>
+          </div>
+          <span class="chev" aria-hidden="true"></span>
+          <div class="txt">
+            <span class="hi">ऊपर स्वाइप करें</span>
+            <span class="en">Swipe up to explore</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="peek">
+        <span class="chev" aria-hidden="true"></span>
+        <span class="lbl">अगला डिज़ाइन</span>
+      </div>
+    </div>
+    <div class="label"><b>1 · Ripple</b> — glow orb, comet trail, ring ripple</div>
+  </div>
+
+  <!-- ============ VARIANT 2 ============ -->
+  <div>
+    <div class="phone">
+      <div class="backdrop"></div>
+      <div class="veil"></div>
+      <div class="brand">Chandni Silk Mills</div>
+      <div class="badge">Swipe-up hint</div>
+
+      <div class="hint">
+        <div class="v2">
+          <div class="orb">
+            <span class="ring"></span>
+            <svg class="hand g g1"><use href="#hand"/></svg>
+            <svg class="hand g g2"><use href="#hand"/></svg>
+            <svg class="hand main"><use href="#hand"/></svg>
+          </div>
+          <div class="txt">
+            <span class="hi">ऊपर स्वाइप करें</span>
+            <span class="en">Swipe up to explore</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="peek">
+        <span class="chev" aria-hidden="true"></span>
+        <span class="lbl">अगला डिज़ाइन</span>
+      </div>
+    </div>
+    <div class="label"><b>2 · Ghost steps</b> — staggered ghosts + pulse ring</div>
+  </div>
+
+  <!-- ============ VARIANT 3 ============ -->
+  <div>
+    <div class="phone">
+      <div class="backdrop"></div>
+      <div class="veil"></div>
+      <div class="brand">Chandni Silk Mills</div>
+      <div class="badge">Swipe-up hint</div>
+
+      <div class="hint">
+        <div class="v3">
+          <div class="orb">
+            <span class="beam"></span>
+            <span class="spec s1"></span>
+            <span class="spec s2"></span>
+            <span class="spec s3"></span>
+            <svg class="hand"><use href="#hand"/></svg>
+          </div>
+          <div class="txt">
+            <span class="hi">ऊपर स्वाइप करें</span>
+            <span class="en">Swipe up to explore</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="peek">
+        <span class="chev" aria-hidden="true"></span>
+        <span class="lbl">अगला डिज़ाइन</span>
+      </div>
+    </div>
+    <div class="label"><b>3 · Beam</b> — light beam, rising fingers, golden specks</div>
+  </div>
+
+</div>
+
+</body>
+</html>

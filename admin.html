@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prices — Chandni Silk Mills</title>
+<style>
+  :root {
+    --bg: #0b0b0e;
+    --accent: #34d399;
+    --accent-2: #f5c451;
+    --text: #eef2f7;
+    --muted: #9aa7b8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    padding: 16px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header h1 span { color: var(--accent-2); }
+  header .sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  header .links { display: flex; gap: 8px; flex-wrap: wrap; }
+  header a.pill {
+    text-decoration: none;
+    color: var(--muted);
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(10,10,14,0.6);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  header a.pill:hover { color: var(--accent); border-color: rgba(52,211,153,0.45); }
+
+  .rule {
+    background: rgba(255,255,255,0.07);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .rule b { color: var(--text); }
+
+  .stats { display: flex; gap: 14px; margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+  .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .card .thumb {
+    aspect-ratio: 3 / 4;
+    background: #14161c;
+    position: relative;
+  }
+  .card .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .card .thumb .idx {
+    position: absolute;
+    left: 6px; top: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(10,10,14,0.6);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .card .body { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .card .name {
+    font-size: 10.5px;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+  .card .current {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--accent-2);
+    font-variant-numeric: tabular-nums;
+    min-height: 20px;
+  }
+  .card .current.empty { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .row { display: flex; gap: 6px; }
+  .row input {
+    flex: 1;
+    min-width: 0;
+    background: #10131a;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+  }
+  .row input:focus { border-color: rgba(245,196,81,0.6); }
+  .row input::placeholder { color: var(--muted); }
+  .row button {
+    border: 1px solid rgba(245,196,81,0.5);
+    background: rgba(245,196,81,0.12);
+    color: var(--accent-2);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .row button:hover { background: rgba(245,196,81,0.25); }
+  .row button:disabled { opacity: 0.5; cursor: default; }
+  .saved {
+    font-size: 11px;
+    color: var(--accent);
+    text-align: right;
+    min-height: 14px;
+  }
+
+  /* ---------- Responsive: tablet ---------- */
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    header { gap: 8px; margin-bottom: 10px; }
+    header h1 { font-size: 16px; }
+    header a.pill { padding: 6px 10px; font-size: 11px; }
+    .rule { padding: 8px 10px; margin-bottom: 14px; font-size: 12px; }
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .card .body { padding: 8px; }
+    .row input { padding: 6px 8px; font-size: 13px; }
+    .row button { padding: 6px 10px; font-size: 12px; }
+  }
+
+  /* ---------- Responsive: small phone ---------- */
+  @media (max-width: 420px) {
+    body { padding: 8px; }
+    header h1 { font-size: 14px; }
+    header .sub { font-size: 11px; }
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .card .thumb { aspect-ratio: 1 / 1; }
+    .card .name { font-size: 9px; }
+    .card .current { font-size: 13px; }
+    .row { flex-direction: column; }
+    .row input { min-width: unset; }
+    .row button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Catalog Prices — <span>Chandni Silk Mills</span></h1>
+    <div class="sub">Enter the ₹ price shown on each design in the price catalog</div>
+  </div>
+  <div class="links">
+    <a class="pill" href="price-catalog.html">← Price catalog</a>
+    <a class="pill" href="index.html">Full catalog</a>
+  </div>
+</header>
+
+<div class="rule">
+  Prices are <b>separate</b> from the main catalog's analytics. A design with no price shows
+  <b>“Price on request”</b> in the catalog. Type a price (e.g. <b>450</b>) and press Save —
+  it updates the price catalog immediately.
+</div>
+
+<div class="stats">
+  <span>Designs: <b id="stat-total">0</b></span>
+  <span>Priced: <b id="stat-done">0</b></span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script src="media.js"></script>
+<script>
+  const FILES = window.CATALOG_FILES;
+  const IS_FILE = location.protocol === "file:";
+  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
+  const stem = (f) => f.replace(/\.[^.]+$/, "").toLowerCase();
+  const thumbUrl = (f) =>
+    (IS_FILE ? "mid/" : location.origin + "/mid/") + encodeURIComponent(stem(f) + ".webp");
+
+  const grid = document.getElementById("grid");
+  const statTotal = document.getElementById("stat-total");
+  const statDone = document.getElementById("stat-done");
+  const prices = {}; // itemId -> price (₹)
+
+  function render() {
+    grid.innerHTML = "";
+    let done = 0;
+    FILES.forEach((f, i) => {
+      const item = stem(f);
+      const p = prices[item];
+      if (p != null) done++;
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML =
+        '<div class="thumb"><span class="idx">#' + (i + 1) + '</span><img src="' + thumbUrl(f) + '" alt="" loading="lazy" decoding="async"></div>' +
+        '<div class="body">' +
+          '<div class="name">' + f + '</div>' +
+          '<div class="current ' + (p != null ? "" : "empty") + '" id="cur-' + item + '">' +
+            (p != null ? "₹ " + Number(p).toLocaleString("en-IN") : "— no price") +
+          '</div>' +
+          '<div class="row">' +
+            '<input id="inp-' + item + '" type="number" min="0" inputmode="numeric" placeholder="₹ price"' +
+              (p != null ? ' value="' + p + '"' : "") + '>' +
+            '<button type="button" id="btn-' + item + '">' + (p != null ? "Update" : "Save") + "</button>" +
+          "</div>" +
+          '<div class="saved" id="msg-' + item + '"></div>' +
+        "</div>";
+      grid.appendChild(card);
+      const input = card.querySelector("input");
+      const btn = card.querySelector("button");
+      const msg = card.querySelector(".saved");
+      btn.addEventListener("click", async () => {
+        const raw = input.value.trim();
+        const price = raw === "" ? null : Number(raw);
+        if (raw !== "" && (!Number.isInteger(price) || price < 0)) {
+          msg.textContent = "Enter a valid price (whole rupees)";
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const r = await fetch(API, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ itemId: item, price }),
+          });
+          const d = await r.json();
+          if (d.ok) {
+            if (price == null) delete prices[item]; else prices[item] = price;
+            const cur = card.querySelector(".current");
+            cur.textContent = price != null ? "₹ " + Number(price).toLocaleString("en-IN") : "— no price";
+            cur.classList.toggle("empty", price == null);
+            btn.textContent = price != null ? "Update" : "Save";
+            input.value = price != null ? String(price) : "";
+            msg.textContent = price != null ? "Saved · ₹ " + price : "Removed";
+            updateStats();
+          } else {
+            msg.textContent = d.error || "Failed";
+          }
+        } catch (e) {
+          msg.textContent = "Error — try again";
+        }
+        btn.disabled = false;
+      });
+    });
+    updateStats();
+  }
+
+  function updateStats() {
+    statTotal.textContent = FILES.length;
+    statDone.textContent = Object.keys(prices).length;
+  }
+
+  (async function init() {
+    try {
+      const r = await fetch(API);
+      const d = await r.json();
+      Object.assign(prices, d.prices || {});
+    } catch (e) { /* prices will just be empty */ }
+    render();
+  })();
+</script>
+</body>
+</html>

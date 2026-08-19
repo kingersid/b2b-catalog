@@ -1,0 +1,18 @@
+.wrangler
+.wrangler/
+node_modules
+.dashboard-key
+
+# Database backups
+prod-backup.sql
+*.backup.sql
+
+# Data backups
+data-backup-*.json
+
+# Local dev secrets
+.dev.vars
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,14 @@
+# Cloudflare Pages project config for the Chandni Silk Mills catalog.
+# 1. Create the D1 database:   npx wrangler d1 create chandni-catalog
+#    -> paste the printed database_id below.
+# 2. Apply the schema:         npx wrangler d1 execute chandni-catalog --remote --file=schema.sql
+# 3. Deploy:                   npx wrangler pages deploy . --project-name=chandni-catalog
+
+name = "chandni-catalog"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "CATALOG_DB"          # matches env.CATALOG_DB in functions/api/catalog.js
+database_name = "chandni-catalog"
+database_id = "c1978fb2-5f08-48f9-94b9-58d6bdfc1628"

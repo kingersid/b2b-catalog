@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0b0b0e" />
+<title>Catalog Dashboard — Chandni Silk Mills</title>
+<style>
+  :root {
+    --bg: #0b0b0e;
+    --accent: #34d399;
+    --accent-2: #f5c451;
+    --text: #eef2f7;
+    --muted: #9aa7b8;
+    --card: #12161d;
+    --border: rgba(255,255,255,0.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background:
+      radial-gradient(140% 90% at 85% -10%, rgba(52, 211, 153, 0.07), transparent 55%),
+      radial-gradient(120% 80% at 0% 110%, rgba(245, 196, 81, 0.05), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+  h1 .accent { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .card {
+    background: rgba(18, 22, 29, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 16px;
+    margin-top: 16px;
+    backdrop-filter: blur(10px);
+  }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat { text-align: center; }
+  .stat .n { font-size: 26px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tab {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .tab.active { background: rgba(52, 211, 153, 0.15); border-color: rgba(52, 211, 153, 0.5); color: var(--accent); }
+  .bar-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+  .bar-img { flex: 0 0 26px; text-align: center; font-size: 12px; color: var(--muted); }
+  .bar-track { flex: 1; height: 22px; background: rgba(255,255,255,0.06); border-radius: 6px; overflow: hidden; }
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    min-width: 2px;
+    transition: width 0.5s ease;
+  }
+  .bar-pct { flex: 0 0 64px; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar-pct small { color: var(--muted); font-weight: 600; display: block; font-size: 10px; }
+  .bar-cta { flex: 0 0 46px; text-align: right; font-size: 12px; font-weight: 700; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+  .card-title { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .src-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 13px; }
+  .src-row b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 12px; line-height: 1.5; }
+  #login { text-align: center; padding: 32px 16px; }
+  #login h2 { font-size: 17px; margin-bottom: 14px; }
+  #login input {
+    width: 100%;
+    max-width: 280px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  #login button {
+    margin-top: 12px;
+    width: 100%;
+    max-width: 280px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #10b981);
+    color: #08120d;
+    font: inherit;
+    font-weight: 800;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  #login .err { color: #ff5b6e; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .foot { color: var(--muted); font-size: 11px; text-align: center; margin-top: 24px; }
+  #refresh { margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Catalog <span class="accent">Dashboard</span></h1>
+  <div class="sub" id="sub">Design views · which designs people actually open</div>
+
+  <div class="card" id="login">
+    <h2>🔒 Dashboard password</h2>
+    <input type="password" id="key" placeholder="Enter passcode" autocomplete="current-password" />
+    <button id="unlock">Unlock dashboard</button>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="card stats">
+      <div class="stat"><div class="n" id="st-visits">–</div><div class="l">Visitors today</div></div>
+      <div class="stat"><div class="n" id="st-seen">–</div><div class="l">Saw img 1</div></div>
+      <div class="stat"><div class="n" id="st-deep">–</div><div class="l">Avg views</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Traffic sources</div>
+      <div id="sources"></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" data-range="today">Today</button>
+        <button class="tab" data-range="all">All time</button>
+      </div>
+      <div id="funnel"></div>
+      <div class="note" id="note"></div>
+      <button class="tab" id="refresh" style="margin-top:14px">↻ Refresh</button>
+    </div>
+
+    <div class="foot">Chandni Silk Mills · data from Cloudflare D1 · auto-refreshes every 60s</div>
+  </div>
+
+</div>
+
+<script>
+  const API = "/api/catalog?action=reach";
+  // Design order — keep in sync with index.html's FILES (maps depth -> filename for CTA counts).
+  const FILES = [
+    "03802cfb-7199-4a28-9553-adb938b57daa.jpg","0654584a-8f7a-4fc8-b625-cfefcefe5a62.jpg",
+    "0e13170a-6da3-4e2b-82d6-679b146e0975.jpg","2558f53b-7ac6-4b14-9922-656f8abd2d7d.jpg",
+    "2a11b4c5-1aea-4195-acdd-d9e0b28af3ab.jpg","2b6e988f-16bf-4da1-875d-c98500284bf4.jpg",
+    "33ee0953-355d-4f6e-bcf3-7da1a483ca4c.jpg","3882a688-0d65-4576-b2ff-725c4ab597d2.jpg",
+    "3acbe829-cb9d-4692-b173-59426f4a8666.jpg",
+    "43b0fe45-d784-4753-80e0-82abe1d5d885.jpg","4a531f73-526e-496b-b8e6-80ab4a1d38a9.jpg",
+    "4fa24c3e-68fb-43e0-a156-eb5f0b549cc5.jpg","580797ed-efff-467f-acaa-5ce3898e4cb5.jpg",
+    "68774310-895f-4389-9d8f-d2fc428ff69f.jpg","6B1E6F7B-22C3-4A3E-90AC-E20043BED5F6.jpg",
+    "72C3A2C5-ED34-4518-BCAF-64D9A58128C4.jpg","742cd8c1-cbda-48c3-a733-3cb6995107ea.jpg",
+    "756A7C1D-241D-44C6-A1D4-CCAED10308F3.jpg","778bdcdf-4164-4bb2-8473-ae023ffba059.jpg",
+    "IMG_8327.JPG","820be7d8-cddc-4e02-b69b-93930c097fcd.jpg",
+    "84d1c227-bfe4-4957-8bc5-4c0c4545b705.jpg","90834BBB-ADD5-4694-B4BB-73B3C4FEA1F4.jpg",
+    "91c35933-1929-4d2a-ab2b-c621546de9bc.jpg","9685e7b4-71eb-4d10-9c0f-d70e68fec742.jpg",
+    "9b5482fe-3b1a-44d7-b406-b10d62c65255.jpg","9e83b0cd-ed4e-489c-8874-dcca7b75083b.jpg",
+    "a636219e-38e3-4a94-ada7-3a70436e60e5.jpg","ad28dc9e-1a1e-459a-aba0-3041b351db0a.jpg",
+    "b2a3d5a3-a723-4d1d-b414-c8d26d26cb68.jpg","b4d93873-2ad8-45bd-af02-f12f11126a3a.jpg",
+    "C05DDC8A-652D-40C1-974C-4346B192660F.jpg","cb75ec62-09c7-4037-a1bf-6fefce805a05.jpg",
+    "d0af4d78-3622-414e-8ab6-fe9d34313870.jpg","d905329f-89f2-4c1c-b9d6-e7efe61b35c1.jpg",
+    "E9967125-2C41-43D8-92A2-F602426A7EFE.jpg","f2c44321-1dd9-4840-a795-31053617549c.jpg",
+    "f5205103-876c-4abf-b2cb-1ccfd61bf2ac.jpg","f8a3ba95-582f-4ada-b792-b7c18aea2f64.jpg",
+    "FD482538-794F-47E4-B4F8-CE9FF619427E.jpg","FEA97D8E-626A-4449-9D1B-AEB50BA7D1D3.jpg",
+    "IMG_0295.JPG","IMG_0467.JPG","IMG_0515.JPG",
+    "819d3441-207b-4355-8c0a-c6d3dc743341.jpg","IMG_8453.JPG",
+    "IMG_8928.JPG","IMG_8930.JPG","IMG_9078.JPG",
+    "IMG_9199.JPG","IMG_9662.JPG"
+  ];
+  // Minimal HTML escaping for user-derived values (traffic sources).
+  const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+  // Key source: ?key= URL param (bookmarkable) > sessionStorage > typed passcode.
+  const urlKey = new URLSearchParams(location.search).get("key");
+  let key = urlKey || sessionStorage.getItem("csm_dash_key") || "";
+  const el = (id) => document.getElementById(id);
+  if (urlKey) { sessionStorage.setItem("csm_dash_key", urlKey); }
+
+  // ---- login ----
+  async function unlock() {
+    const k = (el("key").value || "").trim();
+    if (!k) return;
+    key = k;
+    const ok = await load(true);
+    if (ok) {
+      sessionStorage.setItem("csm_dash_key", key);
+      el("login").style.display = "none";
+      el("content").style.display = "block";
+      el("err").textContent = "";
+    } else {
+      el("err").textContent = "Wrong password";
+    }
+  }
+  el("unlock").addEventListener("click", unlock);
+  el("key").addEventListener("keydown", (e) => { if (e.key === "Enter") unlock(); });
+  if (key) { el("login").style.display = "none"; el("content").style.display = "block"; load(); }
+
+  // ---- data ----
+  let current = "today";
+  document.querySelectorAll(".tab[data-range]").forEach((t) =>
+    t.addEventListener("click", () => {
+      document.querySelectorAll(".tab[data-range]").forEach((x) => x.classList.remove("active"));
+      t.classList.add("active");
+      current = t.dataset.range;
+      render();
+    })
+  );
+  el("refresh").addEventListener("click", () => load());
+
+  async function load(noErr) {
+    try {
+      const r = await fetch(API + "&key=" + encodeURIComponent(key));
+      if (r.status === 401) {
+        if (!noErr) { el("login").style.display = "block"; el("content").style.display = "none"; }
+        return false;
+      }
+      const d = await r.json();
+      if (d.error) { if (!noErr) el("err").textContent = d.error; return false; }
+      window._data = d;
+      render();
+      return true;
+    } catch (e) {
+      if (!noErr) el("err").textContent = "Network error";
+      return false;
+    }
+  }
+
+  function render() {
+    const d = window._data;
+    if (!d) return;
+    const funnel = current === "today" ? d.todayFunnel : d.allFunnel;
+    const visits = current === "today" ? d.visitsToday : d.visitsAll;
+    const byDepth = {};
+    funnel.forEach((f) => (byDepth[f.depth] = f.count));
+
+    el("st-visits").textContent = d.visitsToday;
+    el("st-seen").textContent = byDepth[1] ?? 0;
+    // Average designs viewed per visitor: sum of per-design view counts = total
+    // design views, divided by visitors gives the mean.
+    const sumDepths = funnel.reduce((acc, f) => acc + f.count, 0);
+    const reachable = Math.max(1, d.totalItems || 51);
+    el("st-deep").textContent = visits ? (sumDepths / visits).toFixed(1) : "–";
+
+    let html = "";
+    const topCount = byDepth[1] || 1;
+    for (let i = 1; i <= reachable; i++) {
+      const c = byDepth[i] || 0;
+      const pct = visits ? Math.round((c / visits) * 100) : 0;
+      const ofTop = Math.round((c / topCount) * 100);
+      const cta = (d.ctaClicks || {})[FILES[i - 1]] || 0;
+      html +=
+        '<div class="bar-row">' +
+          '<div class="bar-img">#' + i + "</div>" +
+          '<div class="bar-track"><div class="bar-fill" style="width:' + ofTop + '%"></div></div>' +
+          '<div class="bar-pct">' + (i === 1 ? (c || 0) : pct) + "%" +
+            "<small>" + c + " reached</small></div>" +
+          '<div class="bar-cta">' + (cta ? "📞 " + cta : "") + "</div>" +
+        "</div>";
+    }
+    el("funnel").innerHTML = html;
+
+    // Traffic sources for the active range (top 4).
+    const srcs = current === "today" ? d.sourcesToday || [] : d.sourcesAll || [];
+    el("sources").innerHTML = srcs.length
+      ? srcs.slice(0, 4).map((s) =>
+          '<div class="src-row"><span>' + esc(s.source) + "</span><b>" + s.count + "</b></div>"
+        ).join("")
+      : '<div class="note">No traffic-source data yet (added 2026-08-16).</div>';
+
+    el("note").innerHTML =
+      "Bars show <b>" + (current === "today" ? "today's" : "all-time") + "</b> sessions that opened each design full-screen " +
+      "(image #1 is the 100% baseline; grid lets visitors jump straight to any design). 📞 = WhatsApp CTA clicks for that design.";
+
+    el("sub").textContent =
+      "Updated " + new Date().toLocaleTimeString() + " · " +
+      (current === "today" ? d.today : "all time") +
+      " · " + d.visitsToday + " visitors today";
+  }
+
+  setInterval(() => { if (window._data) load(); }, 60000);
+</script>
+</body>
+</html>

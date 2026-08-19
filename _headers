@@ -1,0 +1,9 @@
+# Cloudflare Pages custom headers.
+# Image filenames are content-stable UUIDs/names; cache them aggressively on the CDN edge.
+# No catch-all rule: index.html keeps Pages' default caching (revalidate on change).
+
+/mid/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/webp/*
+  Cache-Control: public, max-age=31536000, immutable
