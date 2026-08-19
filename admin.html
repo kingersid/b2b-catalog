@@ -205,7 +205,7 @@
   const FILES = window.CATALOG_FILES;
   const IS_FILE = location.protocol === "file:";
   const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
-  const stem = (f) => f.replace(/\.[^.]+$/, "").toLowerCase();
+  const stem = (f) => f.replace(/\.[^.]+$/, "");
   const thumbUrl = (f) =>
     (IS_FILE ? "mid/" : location.origin + "/mid/") + encodeURIComponent(stem(f) + ".webp");
 
