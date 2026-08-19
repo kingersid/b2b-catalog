@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chandni Silk Mills — Design</title>
+<!-- OG tags are set dynamically by JS before WhatsApp crawls -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Chandni Silk Mills" />
+<meta name="twitter:card" content="summary_large_image" />
+<style>
+  :root { --bg: #0b0b0e; --accent: #34d399; --accent-2: #f5c451; --text: #eef2f7; --muted: #9aa7b8; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; padding: 20px; }
+  .card { max-width: 400px; width: 100%; text-align: center; }
+  .card img { width: 100%; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .card h1 { font-size: 18px; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .price { font-size: 22px; font-weight: 800; color: var(--accent-2); margin-bottom: 16px; }
+  .cta { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #25D366, #128C7E); color: #fff; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 999px; text-decoration: none; box-shadow: 0 8px 28px rgba(37, 211, 102, 0.45); }
+  .cta:hover { filter: brightness(1.08); }
+  .error { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <p class="error" id="error" style="display:none">Design not found.</p>
+  <img id="img" src="" alt="" style="display:none">
+  <h1 id="title" style="display:none">Chandni Silk Mills</h1>
+  <p id="design" style="display:none"></p>
+  <div class="price" id="price" style="display:none"></div>
+  <a class="cta" id="cta" href="#" target="_blank" rel="noopener" style="display:none">
+    💬 Book a video call
+  </a>
+</div>
+
+<script src="media.js"></script>
+<script>
+  const FILES = window.CATALOG_FILES;
+  const IS_FILE = location.protocol === "file:";
+  const ORIGIN = location.origin;
+  const urlFor = (f) => (IS_FILE ? "" : ORIGIN + "/") + encodeURIComponent(f);
+  const midUrl = (f) => (IS_FILE ? "mid/" : ORIGIN + "/mid/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
+  const stem = (f) => f.replace(/\.[^.]+$/, "");
+  const WA_NUMBER = "919537097267";
+  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : ORIGIN) + "/prices";
+
+  const params = new URLSearchParams(location.search);
+  const id = params.get("id");
+  const idx = params.get("index");
+
+  let file = null;
+  let designNum = 0;
+
+  // Find by id (stem) or by index
+  if (id) {
+    const found = FILES.find(f => stem(f).toLowerCase() === id.toLowerCase());
+    if (found) { file = found; designNum = FILES.indexOf(found) + 1; }
+  } else if (idx !== null) {
+    const i = parseInt(idx, 10);
+    if (i >= 0 && i < FILES.length) { file = FILES[i]; designNum = i + 1; }
+  }
+
+  if (!file) {
+    document.getElementById("error").style.display = "";
+    document.title = "Design not found — Chandni Silk Mills";
+  } else {
+    const imgEl = document.getElementById("img");
+    const imageUrl = midUrl(file);
+
+    // Set OG meta tags for WhatsApp/social previews
+    document.title = "Design #" + designNum + " — Chandni Silk Mills";
+    document.querySelector('meta[property="og:title"]').content = "Design #" + designNum + " — Chandni Silk Mills";
+    document.querySelector('meta[property="og:description"]').content = "Browse this design from Chandni Silk Mills catalog. Book a video call to discuss.";
+    document.querySelector('meta[property="og:image"]').content = imageUrl;
+    document.querySelector('meta[property="og:image:width"]').content = "600";
+    document.querySelector('meta[property="og:image:height"]').content = "800";
+    document.querySelector('meta[property="og:url"]').content = location.href;
+    document.querySelector('meta[name="twitter:card"]').content = "summary_large_image";
+    document.querySelector('meta[name="twitter:title"]').content = "Design #" + designNum + " — Chandni Silk Mills";
+    document.querySelector('meta[name="twitter:description"]').content = "Browse this design from Chandni Silk Mills catalog.";
+    document.querySelector('meta[name="twitter:image"]').content = imageUrl;
+
+    // Show the card
+    imgEl.src = imageUrl;
+    imgEl.alt = "Design #" + designNum;
+    imgEl.style.display = "";
+    document.getElementById("title").style.display = "";
+    document.getElementById("design").textContent = "Design #" + designNum + " of " + FILES.length;
+    document.getElementById("design").style.display = "";
+
+    // Load price
+    fetch(API).then(r => r.json()).then(d => {
+      const p = d.prices && d.prices[stem(file)];
+      if (p != null) {
+        document.getElementById("price").textContent = "\u20B9" + Number(p).toLocaleString("en-IN");
+        document.getElementById("price").style.display = "";
+      }
+    }).catch(() => {});
+
+    // WhatsApp CTA
+    const msg = encodeURIComponent(
+      "Hi Chandni Silk Mills! \uD83D\uDC4B I saw design " + file + " (#" + designNum + ") in your catalog and I'd like to book a video call to discuss it."
+    );
+    const cta = document.getElementById("cta");
+    cta.href = "https://wa.me/" + WA_NUMBER + "?text=" + msg;
+    cta.style.display = "";
+  }
+</script>
+</body>
+</html>
