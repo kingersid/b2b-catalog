@@ -1,0 +1,138 @@
+// Cloudflare Pages Function: /share.html?id=... or /share.html?index=N
+// Renders the share page with OG meta tags set in the HTML (not via JS),
+// so WhatsApp/social crawlers can read them for preview cards.
+
+const FILES = [
+  "03802cfb-7199-4a28-9553-adb938b57daa.jpg","0654584a-8f7a-4fc8-b625-cfefcefe5a62.jpg",
+  "0e13170a-6da3-4e2b-82d6-679b146e0975.jpg","2558f53b-7ac6-4b14-9922-656f8abd2d7d.jpg",
+  "2a11b4c5-1aea-4195-acdd-d9e0b28af3ab.jpg","2b6e988f-16bf-4da1-875d-c98500284bf4.jpg",
+  "33ee0953-355d-4f6e-bcf3-7da1a483ca4c.jpg","3882a688-0d65-4576-b2ff-725c4ab597d2.jpg",
+  "3acbe829-cb9d-4692-b173-59426f4a8666.jpg",
+  "43b0fe45-d784-4753-80e0-82abe1d5d885.jpg","4a531f73-526e-496b-b8e6-80ab4a1d38a9.jpg",
+  "4fa24c3e-68fb-43e0-a156-eb5f0b549cc5.jpg","580797ed-efff-467f-acaa-5ce3898e4cb5.jpg",
+  "68774310-895f-4389-9d8f-d2fc428ff69f.jpg","6B1E6F7B-22C3-4A3E-90AC-E20043BED5F6.jpg",
+  "72C3A2C5-ED34-4518-BCAF-64D9A58128C4.jpg","742cd8c1-cbda-48c3-a733-3cb6995107ea.jpg",
+  "756A7C1D-241D-44C6-A1D4-CCAED10308F3.jpg","778bdcdf-4164-4bb2-8473-ae023ffba059.jpg",
+  "IMG_8327.JPG","820be7d8-cddc-4e02-b69b-93930c097fcd.jpg",
+  "84d1c227-bfe4-4957-8bc5-4c0c4545b705.jpg","90834BBB-ADD5-4694-B4BB-73B3C4FEA1F4.jpg",
+  "91c35933-1929-4d2a-ab2b-c621546de9bc.jpg","9685e7b4-71eb-4d10-9c0f-d70e68fec742.jpg",
+  "9b5482fe-3b1a-44d7-b406-b10d62c65255.jpg","9e83b0cd-ed4e-489c-8874-dcca7b75083b.jpg",
+  "a636219e-38e3-4a94-ada7-3a70436e60e5.jpg","ad28dc9e-1a1e-459a-aba0-3041b351db0a.jpg",
+  "b2a3d5a3-a723-4d1d-b414-c8d26d26cb68.jpg","b4d93873-2ad8-45bd-af02-f12f11126a3a.jpg",
+  "C05DDC8A-652D-40C1-974C-4346B192660F.jpg","cb75ec62-09c7-4037-a1bf-6fefce805a05.jpg",
+  "d0af4d78-3622-414e-8ab6-fe9d34313870.jpg","d905329f-89f2-4c1c-b9d6-e7efe61b35c1.jpg",
+  "E9967125-2C41-43D8-92A2-F602426A7EFE.jpg","f2c44321-1dd9-4840-a795-31053617549c.jpg",
+  "f5205103-876c-4abf-b2cb-1ccfd61bf2ac.jpg","f8a3ba95-582f-4ada-b792-b7c18aea2f64.jpg",
+  "FD482538-794F-47E4-B4F8-CE9FF619427E.jpg","FEA97D8E-626A-4449-9D1B-AEB50BA7D1D3.jpg",
+  "IMG_0295.JPG","IMG_0467.JPG","IMG_0515.JPG",
+  "819d3441-207b-4355-8c0a-c6d3dc743341.jpg","IMG_8453.JPG",
+  "IMG_8928.JPG","IMG_8930.JPG","IMG_9078.JPG",
+  "IMG_9199.JPG","IMG_9662.JPG"
+];
+
+const stem = (f) => f.replace(/\.[^.]+$/, "");
+const midUrl = (f, origin) => origin + "/mid/" + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
+const total = FILES.length;
+
+export async function onRequest(context) {
+  const { request, env } = context;
+  const url = new URL(request.url);
+  const origin = url.origin;
+  const params = url.searchParams;
+  const id = params.get("id");
+  const idx = params.get("index");
+
+  let file = null;
+  let designNum = 0;
+
+  if (id) {
+    const found = FILES.find(f => stem(f).toLowerCase() === id.toLowerCase());
+    if (found) { file = found; designNum = FILES.indexOf(found) + 1; }
+  } else if (idx !== null) {
+    const i = parseInt(idx, 10);
+    if (i >= 0 && i < total) { file = FILES[i]; designNum = i + 1; }
+  }
+
+  if (!file) {
+    return new Response(renderPage(origin, null, 0, total, null), {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+
+  // Look up price from D1
+  let price = null;
+  try {
+    const row = await env.CATALOG_DB
+      .prepare("SELECT price FROM prices WHERE item_id = ?")
+      .bind(stem(file))
+      .first();
+    if (row) price = row.price;
+  } catch (e) { /* ignore */ }
+
+  return new Response(renderPage(origin, file, designNum, total, price), {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=3600",
+    },
+  });
+}
+
+function renderPage(origin, file, designNum, total, price) {
+  const imageUrl = file ? midUrl(file, origin) : origin + "/landing.webp";
+  const title = file ? `Design #${designNum} — Chandni Silk Mills` : "Chandni Silk Mills";
+  const description = file
+    ? `Design #${designNum} of ${total} from Chandni Silk Mills catalog. Book a video call to discuss.`
+    : "Chandni Silk Mills — product catalog. Browse all designs.";
+  const priceHtml = price != null
+    ? `<div class="price">₹${Number(price).toLocaleString("en-IN")}</div>`
+    : "";
+  const ctaHtml = file
+    ? `<a class="cta" href="https://wa.me/919537097267?text=${encodeURIComponent("Hi Chandni Silk Mills! 👋 I saw design " + file + " (#" + designNum + ") in your catalog and I'd like to book a video call to discuss it.")}" target="_blank" rel="noopener">💬 Book a video call</a>`
+    : `<a class="cta" href="https://chandni-catalog.pages.dev" target="_blank" rel="noopener">Browse catalog</a>`;
+  const errorHtml = !file ? `<p class="error">Design not found.</p>` : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${title}</title>
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Chandni Silk Mills" />
+<meta property="og:title" content="${title}" />
+<meta property="og:description" content="${description}" />
+<meta property="og:image" content="${imageUrl}" />
+<meta property="og:image:width" content="600" />
+<meta property="og:image:height" content="800" />
+<meta property="og:url" content="${origin}/share.html?index=${designNum ? designNum - 1 : 0}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${title}" />
+<meta name="twitter:description" content="${description}" />
+<meta name="twitter:image" content="${imageUrl}" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230d1117'/><text x='50' y='68' font-size='46' text-anchor='middle' fill='%2334d399' font-family='Arial' font-weight='bold'>CS</text></svg>" />
+<style>
+  :root { --bg: #0b0b0e; --accent: #34d399; --accent-2: #f5c451; --text: #eef2f7; --muted: #9aa7b8; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: grid; place-items: center; min-height: 100dvh; padding: 20px; }
+  .card { max-width: 400px; width: 100%; text-align: center; }
+  .card img { width: 100%; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+  .card h1 { font-size: 18px; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .price { font-size: 22px; font-weight: 800; color: var(--accent-2); margin-bottom: 16px; }
+  .cta { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #25D366, #128C7E); color: #fff; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 999px; text-decoration: none; box-shadow: 0 8px 28px rgba(37, 211, 102, 0.45); }
+  .cta:hover { filter: brightness(1.08); }
+  .error { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="card">
+  ${errorHtml}
+  ${file ? `<img src="${imageUrl}" alt="Design #${designNum}">` : ""}
+  <h1>Chandni Silk Mills</h1>
+  ${file ? `<p>Design #${designNum} of ${total}</p>` : ""}
+  ${priceHtml}
+  ${ctaHtml}
+</div>
+</body>
+</html>`;
+}
