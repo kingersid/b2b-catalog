@@ -681,9 +681,10 @@
     if (active > 0 && FILES[active - 1]) item = FILES[active - 1];
     const p = item ? prices[stem(item)] : undefined;
     const priceTxt = p != null ? " (₹" + Number(p).toLocaleString("en-IN") + ")" : "";
+    const shareLink = item ? (ORIGIN + "/share.html?index=" + (active - 1)) : "";
     const msg = encodeURIComponent(
       "Hi Chandni Silk Mills! 👋 I saw design " + (item || "in your catalog") + priceTxt +
-      " and I'd like to book a video call to discuss it."
+      " and I'd like to book a video call to discuss it." + (shareLink ? "\n\n" + shareLink : "")
     );
     waCta.href = "https://wa.me/" + WA_NUMBER + "?text=" + msg;
   }

@@ -693,9 +693,10 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
 
     // WhatsApp CTA prefilled with the current design (generic on the poster).
     const item = onPoster ? "" : FILES[active];
+    const shareLink = item ? (ORIGIN + "/share.html?index=" + active) : "";
     const msg = encodeURIComponent(
       item
-        ? "Hi Chandni Silk Mills! 👋 I saw design " + item + " (#" + (active + 1) + ") in your catalog and I'd like to book a video call to discuss it."
+        ? "Hi Chandni Silk Mills! 👋 I saw design " + item + " (#" + (active + 1) + ") in your catalog and I'd like to book a video call to discuss it." + (shareLink ? "\n\n" + shareLink : "")
         : "Hi Chandni Silk Mills! 👋 I'd like to book a video call to discuss your catalog."
     );
     waCta.href = "https://wa.me/" + WA_NUMBER + "?text=" + msg;
