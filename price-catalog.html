@@ -450,7 +450,7 @@
   const WA_NUMBER = "919537097267";
   const webpUrl = (f) => (IS_FILE ? "webp/" : ORIGIN + "/webp/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
   const midUrl = (f) => (IS_FILE ? "mid/" : ORIGIN + "/mid/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
-  const stem = (f) => f.replace(/\.[^.]+$/, "").toLowerCase();
+  const stem = (f) => f.replace(/\.[^.]+$/, "");
 
   const feed = document.getElementById("feed");
   const total = FILES.length;
