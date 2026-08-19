@@ -36,29 +36,47 @@ Netlify's free tier (100 GB/month bandwidth) was exhausted. Cloudflare Pages has
   (`POST body {depth}` only — no backfill, since jumping to #30 doesn't mean the
   visitor saw #1-29). The dashboard's bars are "sessions that opened design N".
 
-## Deploy (one-time setup)
+## CI/CD Pipeline (GitHub Actions → Cloudflare Pages)
+
+Deploys are fully automated via GitHub Actions. Every push to `main` triggers a
+deploy to Cloudflare Pages production.
+
+### How it works
+
+1. Push to `main` → GitHub Actions runs `.github/workflows/deploy.yml`
+2. Workflow uses `cloudflare/wrangler-action` to deploy to Pages
+3. Site goes live at `https://chandni-catalog.pages.dev` (usually within ~30s)
+
+### Setup (one-time)
+
+1. **Create a Cloudflare API token** at https://dash.cloudflare.com/profile/api-tokens
+   - Use the **"Edit Cloudflare Workers"** template (includes `Pages:Edit` permission)
+2. **Add GitHub secrets** at https://github.com/kingersid/b2b-catalog/settings/secrets/actions
+   - `CLOUDFLARE_API_TOKEN` → your API token
+   - `CLOUDFLARE_ACCOUNT_ID` → `e80e472d0cd0037855bc396a3b7f7d97`
+3. **Connect Cloudflare Pages** to the GitHub repo:
+   - Cloudflare Dashboard → Workers & Pages → chandni-catalog → Settings → Builds & deployments → Connect to Git
+
+### Day-to-day workflow
 
 ```bash
-# 0. Install wrangler (Node 18+)
-npm i -g wrangler
-
-# 1. Create the D1 database
-npx wrangler d1 create chandni-catalog
-#    -> copy the "database_id" from the output into wrangler.toml
-
-# 2. Create the tables
-npx wrangler d1 execute chandni-catalog --remote --file=schema.sql
-
-# 3. Deploy the site (static files + functions/ are uploaded together).
-#    `npm run deploy` runs the portrait-image guard first and aborts if any
-#    image is landscape, then deploys.
-npm run deploy
-#    (or, to skip the guard intentionally: npx wrangler pages deploy . --project-name=chandni-catalog)
-
-# 4. (Optional) custom domain: Cloudflare dashboard -> Workers & Pages -> chandni-catalog -> Custom domains
+# Both PCs: pull, make changes, push
+git pull
+# ... edit files ...
+git add -A && git commit -m "description of change"
+git push    # auto-deploys to production
 ```
 
-The site will be live at `https://chandni-catalog.pages.dev`.
+### Manual deploy (bypass CI)
+
+```bash
+npm run deploy   # runs portrait check + wrangler pages deploy
+```
+
+### Preview deployments
+
+Pull requests automatically get a preview URL (e.g. `https://abc123.chandni-catalog.pages.dev`)
+so you can test changes before merging to `main`.
 
 ## Local development
 
@@ -134,6 +152,15 @@ It is dependency-free (parses JPEG/WebP/PNG/GIF headers directly) and understand
 EXIF orientation, so a sideways-stored phone photo (e.g. 4032x3024, Orientation=6)
 is correctly treated as portrait — but a genuinely landscape image fails the check.
 
+## Pages
+
+| URL | Description |
+|-----|-------------|
+| `/` | Main catalog — grid view, tap to open full-screen |
+| `/admin` | Price admin — enter/edit ₹ prices per design |
+| `/price-catalog` | Price catalog — scrollable full-screen feed with prices |
+| `/dashboard` | Analytics dashboard (key-protected) |
+
 ## Dashboard (design views)
 
 Open **https://chandni-catalog.pages.dev/dashboard** and enter the dashboard passcode
@@ -147,6 +174,24 @@ plus a 📞 WhatsApp-CTA-clicks column and a traffic-sources card.
 - Data lives in the `reach` table: one row per (day, depth), where depth N's count =
   sessions that opened design N full-screen (no backfill — jumps don't imply skipped
   designs were seen).
+
+## Prices
+
+The price catalog and admin pages use a separate `/prices` API backed by D1:
+
+```bash
+# View all prices
+curl https://chandni-catalog.pages.dev/prices
+# -> { "prices": { "item-id": 450, ... } }
+
+# Set a price (via admin page or API)
+curl -X POST -H "content-type: application/json" \
+  -d '{"itemId": "item-id", "price": 450}' \
+  https://chandni-catalog.pages.dev/prices
+```
+
+Prices are stored in the `prices` table (D1). A design with no price shows
+"Price on request" in the price catalog.
 
 ## Viewing counter / hearts data
 
