@@ -87,6 +87,72 @@ npx wrangler d1 execute chandni-catalog --remote --command "SELECT * FROM prices
 npx wrangler d1 export chandni-catalog --remote --output backup.sql
 ```
 
+### Source of Truth
+
+**Production D1 is the source of truth.** Local D1 is a per-machine SQLite file
+under `.wrangler/` — not shared, and wiped if `.wrangler/` is deleted.
+
+| | Local D1 | Production D1 |
+|--|----------|---------------|
+| Location | `.wrangler/state/v3/d1/` on each PC | Cloudflare edge |
+| Data | Copy/snapshot | Real user data |
+| Who uses it | `wrangler pages dev` only | Live site visitors |
+| Shared? | No — each PC has its own | Yes — single instance |
+
+### Syncing Local from Production
+
+Run this whenever local data is stale (e.g. after other PC made changes,
+or after testing on production):
+
+```bash
+# 1. Export production data (creates a full SQL dump)
+npx wrangler d1 export chandni-catalog --remote --output prod-sync.sql
+
+# 2. Strip CREATE TABLE statements (keep only INSERTs)
+grep '^INSERT' prod-sync.sql > prod-inserts.sql
+
+# 3. Apply schema to local (creates tables if missing)
+npx wrangler d1 execute chandni-catalog --local --file=schema.sql
+
+# 4. Import production data into local
+npx wrangler d1 execute chandni-catalog --local --file=prod-inserts.sql
+
+# 5. Clean up
+rm prod-sync.sql prod-inserts.sql
+```
+
+Or use the one-liner:
+
+```bash
+npx wrangler d1 export chandni-catalog --remote --output /tmp/prod.sql && \
+grep '^INSERT' /tmp/prod.sql > /tmp/ins.sql && \
+npx wrangler d1 execute chandni-catalog --local --file=schema.sql && \
+npx wrangler d1 execute chandni-catalog --local --file=/tmp/ins.sql && \
+echo "Sync complete"
+```
+
+### Checking for Discrepancies
+
+```bash
+# Compare row counts between local and production
+for tbl in visits hearts reach cta sources prices; do
+  prod=$(npx wrangler d1 execute chandni-catalog --remote \
+    --command "SELECT COUNT(*) as cnt FROM $tbl;" 2>&1 | \
+    grep '"cnt":' | grep -o '[0-9]*')
+  local=$(npx wrangler d1 execute chandni-catalog --local \
+    --command "SELECT COUNT(*) as cnt FROM $tbl;" 2>&1 | \
+    grep '"cnt":' | grep -o '[0-9]*')
+  if [ "$prod" = "$local" ]; then
+    echo "✅ $tbl: $prod rows"
+  else
+    echo "⚠️  $tbl: prod=$prod local=$local"
+  fi
+done
+```
+
+**Rule**: always make changes via the live site's admin pages. Don't edit local
+D1 directly — those changes are lost on the next prod sync.
+
 ## API Endpoints
 
 ### `/api/catalog`
