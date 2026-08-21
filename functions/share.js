@@ -27,15 +27,16 @@ const FILES = [
   "IMG_0295.JPG","IMG_0467.JPG","IMG_0515.JPG",
   "819d3441-207b-4355-8c0a-c6d3dc743341.jpg","IMG_8453.JPG",
   "IMG_8928.JPG","IMG_8930.JPG","IMG_9078.JPG",
-  "IMG_9199.JPG","IMG_9662.JPG"
-];
+  "IMG_9199.JPG","IMG_9662.JPG",
+    "98edd9f5-d59b-4b28-aba8-e6eb16a4befe.jpg"
+  ];
 
 const stem = (f) => f.replace(/\.[^.]+$/, "");
 const midUrl = (f, origin) => origin + "/mid/" + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
 const total = FILES.length;
 
 export async function onRequest(context) {
-  const { request, env } = context;
+  const { request } = context;
   const url = new URL(request.url);
   const origin = url.origin;
   const params = url.searchParams;
@@ -54,22 +55,12 @@ export async function onRequest(context) {
   }
 
   if (!file) {
-    return new Response(renderPage(origin, null, 0, total, null), {
+    return new Response(renderPage(origin, null, 0, total), {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
 
-  // Look up price from D1
-  let price = null;
-  try {
-    const row = await env.CATALOG_DB
-      .prepare("SELECT price FROM prices WHERE item_id = ?")
-      .bind(stem(file))
-      .first();
-    if (row) price = row.price;
-  } catch (e) { /* ignore */ }
-
-  return new Response(renderPage(origin, file, designNum, total, price), {
+  return new Response(renderPage(origin, file, designNum, total), {
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "public, max-age=3600",
@@ -77,15 +68,12 @@ export async function onRequest(context) {
   });
 }
 
-function renderPage(origin, file, designNum, total, price) {
+function renderPage(origin, file, designNum, total) {
   const imageUrl = file ? midUrl(file, origin) : origin + "/landing.webp";
   const title = file ? `Design #${designNum} — Chandni Silk Mills` : "Chandni Silk Mills";
   const description = file
     ? `Design #${designNum} of ${total} from Chandni Silk Mills catalog. Book a video call to discuss.`
     : "Chandni Silk Mills — product catalog. Browse all designs.";
-  const priceHtml = price != null
-    ? `<div class="price">₹${Number(price).toLocaleString("en-IN")}</div>`
-    : "";
   const ctaHtml = file
     ? `<a class="cta" href="https://wa.me/919537097267?text=${encodeURIComponent("Hi Chandni Silk Mills! 👋 I saw design " + file + " (#" + designNum + ") in your catalog and I'd like to book a video call to discuss it.")}" target="_blank" rel="noopener">💬 Book a video call</a>`
     : `<a class="cta" href="https://chandni-catalog.pages.dev" target="_blank" rel="noopener">Browse catalog</a>`;
@@ -118,7 +106,6 @@ function renderPage(origin, file, designNum, total, price) {
   .card img { width: 100%; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
   .card h1 { font-size: 18px; margin-bottom: 6px; }
   .card p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
-  .price { font-size: 22px; font-weight: 800; color: var(--accent-2); margin-bottom: 16px; }
   .cta { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #25D366, #128C7E); color: #fff; font-weight: 700; font-size: 15px; padding: 14px 24px; border-radius: 999px; text-decoration: none; box-shadow: 0 8px 28px rgba(37, 211, 102, 0.45); }
   .cta:hover { filter: brightness(1.08); }
   .error { color: var(--muted); font-size: 14px; }
@@ -130,7 +117,6 @@ function renderPage(origin, file, designNum, total, price) {
   ${file ? `<img src="${imageUrl}" alt="Design #${designNum}">` : ""}
   <h1>Chandni Silk Mills</h1>
   ${file ? `<p>Design #${designNum} of ${total}</p>` : ""}
-  ${priceHtml}
   ${ctaHtml}
 </div>
 </body>
