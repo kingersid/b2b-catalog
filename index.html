@@ -152,6 +152,21 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     display: none;
   }
   .cell.show-heart .heart-badge { display: block; }
+  /* Trending: top-3 most-hearted designs get a fire badge */
+  .cell .trend {
+    position: absolute;
+    left: 6px; top: 6px;
+    z-index: 2;
+    font-size: 12px;
+    background: rgba(10,10,14,0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-radius: 6px;
+    padding: 2px 6px;
+    pointer-events: none;
+    display: none;
+  }
+  .cell.trending .trend { display: block; }
 
   /* ============================================================
      VIEW: DETAIL — full-screen slides from the tapped design
@@ -396,6 +411,33 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     .peek .chev { animation: none; }
   }
 
+  /* Zoomable detail media — transform-driven, no layout thrash */
+  .media img.full {
+    will-change: transform;
+    transition: transform 0.18s ease-out;
+  }
+  .media img.full.zooming { transition: none; } /* no easing while fingers move */
+  .zoom-hint {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 11vh + 14px);
+    transform: translateX(-50%);
+    z-index: 6;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    background: rgba(10,10,14,0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 999px;
+    padding: 5px 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  .zoom-hint.show { opacity: 1; }
+
   /* WhatsApp video-call CTA — above the peek strip */
   .wa-cta {
     position: fixed;
@@ -416,6 +458,185 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     touch-action: manipulation;
   }
   .wa-cta:hover { filter: brightness(1.08); }
+
+  /* Shortlist floating pill (grid view) */
+  .shortlist-pill {
+    position: fixed;
+    left: 14px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    z-index: 40;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 91, 110, 0.5);
+    background: rgba(10, 10, 14, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #ff5b6e;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 11px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    touch-action: manipulation;
+    transition: transform 0.15s;
+  }
+  .shortlist-pill.show { display: inline-flex; }
+  .shortlist-pill:active { transform: scale(0.94); }
+  .shortlist-pill .n {
+    background: #ff5b6e;
+    color: #fff;
+    border-radius: 999px;
+    min-width: 20px;
+    height: 20px;
+    display: inline-grid;
+    place-items: center;
+    font-size: 11px;
+    padding: 0 5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Shortlist bottom sheet */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+  }
+  .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+  .shortlist-sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 95;
+    transform: translateY(105%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0.25, 1);
+    background: #10161f;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 20px 20px 0 0;
+    padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+    box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.6);
+  }
+  .shortlist-sheet.open { transform: translateY(0); }
+  .shortlist-sheet h3 {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.2px;
+  }
+  .shortlist-sheet .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .shortlist-sheet .close-sheet {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06);
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .sl-thumbs {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 14px 2px 6px;
+    scrollbar-width: thin;
+    min-height: 96px;
+  }
+  .sl-thumb {
+    position: relative;
+    flex: 0 0 auto;
+    width: 74px;
+    aspect-ratio: 3 / 4.2;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--card);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    padding: 0;
+    touch-action: manipulation;
+  }
+  .sl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sl-thumb .t-num {
+    position: absolute;
+    left: 4px; bottom: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(10,10,14,0.65);
+    border-radius: 5px;
+    padding: 1px 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sl-thumb .t-remove {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: rgba(10,10,14,0.75);
+    color: #fff;
+    font-size: 11px;
+    line-height: 17px;
+    text-align: center;
+  }
+  .sl-empty {
+    font-size: 12.5px;
+    color: var(--muted);
+    padding: 24px 4px;
+    text-align: center;
+  }
+  .sl-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .sl-actions .wa-send {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 13px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #25D366, #128C7E);
+    color: #fff;
+    font: inherit;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-decoration: none;
+    box-shadow: 0 6px 22px rgba(37, 211, 102, 0.35);
+  }
+  .sl-actions .wa-send:disabled {
+    filter: grayscale(0.7);
+    opacity: 0.55;
+    cursor: default;
+  }
+  .sl-actions .clear-all {
+    padding: 13px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
 
   /* Toast */
   #toast {
@@ -474,6 +695,25 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   </header>
   <p class="grid-sub">The full catalog at a glance — <b id="grid-count"></b> designs. <b>Tap any design</b> to view it full-screen.</p>
   <div class="grid" id="grid"></div>
+  <button class="shortlist-pill" id="shortlist-pill" aria-label="Open my shortlist">
+    ♥ My Shortlist <span class="n" id="sl-count">0</span>
+  </button>
+</div>
+
+<!-- ============ SHORTLIST SHEET ============ -->
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="shortlist-sheet" id="shortlist-sheet" role="dialog" aria-modal="true" aria-label="My shortlist">
+  <button class="close-sheet" id="close-sheet" aria-label="Close shortlist">✕</button>
+  <h3>My Shortlist ❤️</h3>
+  <p class="hint">Tap a design to remove it. Send the list on WhatsApp to get prices &amp; availability.</p>
+  <div class="sl-thumbs" id="sl-thumbs"></div>
+  <div class="sl-actions">
+    <a class="wa-send" id="sl-wa-send" href="#" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Send on WhatsApp
+    </a>
+    <button class="clear-all" id="sl-clear" type="button">Clear</button>
+  </div>
 </div>
 
 <!-- ============ DETAIL VIEW ============ -->
@@ -577,7 +817,8 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       (i < 6 ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"') +
       ' decoding="async">' +
       '<span class="num">#' + (i + 1) + "</span>" +
-      '<span class="heart-badge"></span>';
+      '<span class="heart-badge"></span>' +
+      '<span class="trend" title="Trending — one of the most liked designs">🔥</span>';
     cell.querySelector("img").addEventListener("load", () => cell.classList.add("loaded"), { once: true });
     cell.addEventListener("click", () => openDetail(i));
     grid.appendChild(cell);
@@ -596,6 +837,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
         '<div class="media">' +
           '<img class="full" src="' + midUrl(f) + '" alt="Design ' + (i + 1) + '"' +
           (i < 2 ? ' loading="eager"' : ' loading="lazy"') + ' decoding="async">' +
+          '<span class="zoom-hint">Pinch or double-tap to zoom the fabric</span>' +
         "</div>" +
         '<button class="heart" data-item="' + stem(f) + '" aria-label="Like this design">♡ <span class="n">0</span></button>';
       slideArea.appendChild(slide);
@@ -625,7 +867,10 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     for (const e of entries) {
       if (e.isIntersecting) {
         const idx = Number(e.target.dataset.index);
-        if (idx !== active) { active = idx; update(); }
+        if (idx !== active) {
+          if (zoomedIdx >= 0 && zoomedIdx !== idx) resetZoom(true); // leaving a zoomed slide
+          active = idx; update();
+        }
       }
     }
   }, { threshold: 0.5 });
@@ -660,6 +905,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     update();
   }
   function closeDetail() {
+    resetZoom(true);
     detail.classList.remove("open");
     document.body.style.overflow = "";
     window.scrollTo(0, gridScroll);
@@ -670,8 +916,168 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   });
 
   // ============================================================
-  // ACTIVE-SLIDE UPDATE: counter, peek, CTA, full-res upgrade
+  // ZOOM: pinch / double-tap on the active slide's fabric photo.
+  // Fabric buyers need to inspect weave and zari up close. While zoomed
+  // (scale > 1) the gesture belongs to the image — slide scroll is frozen so
+  // vertical drags pan the fabric instead of flipping designs; pinch back in
+  // or double-tap to release.
   // ============================================================
+  const MIN_SCALE = 1, MAX_SCALE = 4;
+  let zScale = 1, zTx = 0, zTy = 0;         // current transform
+  let zoomedIdx = -1;                        // which slide img is zoomed
+  const zoomHint = document.querySelector(".zoom-hint");
+  let hintShown = false;
+
+  function showZoomHint() {
+    if (hintShown) return;
+    hintShown = true;
+    if (!zoomHint) return;
+    zoomHint.classList.add("show");
+    setTimeout(() => zoomHint.classList.remove("show"), 2600);
+  }
+
+  function applyTransform(img, immediate) {
+    img.classList.toggle("zooming", !!immediate);
+    img.style.transform = "translate(" + zTx + "px," + zTy + "px) scale(" + zScale + ")";
+  }
+
+  function clampPan(img) {
+    // Keep the image edges from separating from the viewport while panning.
+    if (zScale <= 1) { zTx = 0; zTy = 0; return; }
+    const rect = img.getBoundingClientRect();
+    const maxX = Math.max(0, (rect.width * zScale - rect.width) / 2);
+    const maxY = Math.max(0, (rect.height * zScale - rect.height) / 2);
+    zTx = Math.max(-maxX, Math.min(maxX, zTx));
+    zTy = Math.max(-maxY, Math.min(maxY, zTy));
+  }
+
+  function resetZoom(immediate) {
+    if (zoomedIdx < 0) return;
+    const img = slides[zoomedIdx] && slides[zoomedIdx].querySelector("img.full");
+    if (!img) return;
+    zScale = 1; zTx = 0; zTy = 0;
+    applyTransform(img, immediate);
+    slideArea.style.overflowY = "";
+    zoomedIdx = -1;
+  }
+
+  function setupZoom(img, idx) {
+    let lastTapT = 0, lastTapX = 0, lastTapY = 0;   // double-tap detection
+    let pinchStart = null;                           // {dist, cx, cy, scale, tx, ty}
+    let panStart = null;                             // pointer pan state
+
+    const media = img.parentElement;
+
+    function zoomTo(scale, cx, cy) {
+      // Zoom around a point (viewport coords relative to img center).
+      const rect = img.getBoundingClientRect();
+      const ox = cx != null ? cx - (rect.left + rect.width / 2) : 0;
+      const oy = cy != null ? cy - (rect.top + rect.height / 2) : 0;
+      const prev = zScale;
+      zScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+      if (zScale > MIN_SCALE && zoomedIdx !== idx) {
+        if (zoomedIdx >= 0 && zoomedIdx !== idx) resetZoom(true); // only one zoomed at a time
+        zoomedIdx = idx;
+        slideArea.style.overflowY = "hidden"; // freeze snap-scroll while inspecting
+      }
+      // Adjust translation so the point under the fingers stays put.
+      const k = zScale / prev;
+      zTx = ox + (zTx - ox) * k;
+      zTy = oy + (zTy - oy) * k;
+      clampPan(img);
+      applyTransform(img, false);
+      showZoomHint();
+      // Upgrade to full-res as soon as someone starts inspecting detail work.
+      upgradeToFull(idx);
+    }
+
+    media.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        const [a, b] = e.touches;
+        pinchStart = {
+          dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+          cx: (a.clientX + b.clientX) / 2,
+          cy: (a.clientY + b.clientY) / 2,
+          scale: zScale, tx: zTx, ty: zTy,
+        };
+        lastTapT = 0; // a two-finger touch cancels double-tap
+        e.preventDefault();
+      } else if (e.touches.length === 1 && zScale > 1) {
+        const t = e.touches[0];
+        panStart = { x: t.clientX - zTx, y: t.clientY - zTy };
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    media.addEventListener("touchmove", (e) => {
+      if (pinchStart && e.touches.length === 2) {
+        const [a, b] = e.touches;
+        const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        const cx = (a.clientX + b.clientX) / 2;
+        const cy = (a.clientY + b.clientY) / 2;
+        const k = dist / Math.max(1, pinchStart.dist);
+        zScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinchStart.scale * k));
+        zTx = pinchStart.tx + (cx - pinchStart.cx);
+        zTy = pinchStart.ty + (cy - pinchStart.cy);
+        if (zScale <= MIN_SCALE) { resetZoom(false); return; }
+        clampPan(img);
+        applyTransform(img, true);
+        if (zoomedIdx !== idx) { zoomedIdx = idx; slideArea.style.overflowY = "hidden"; }
+        e.preventDefault();
+      } else if (panStart && e.touches.length === 1 && zScale > 1) {
+        zTx = e.touches[0].clientX - panStart.x;
+        zTy = e.touches[0].clientY - panStart.y;
+        clampPan(img);
+        applyTransform(img, true);
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    media.addEventListener("touchend", () => {
+      pinchStart = null;
+      panStart = null;
+      if (zScale <= 1.02 && zoomedIdx === idx) resetZoom(false); // pinched back out
+    });
+
+    media.addEventListener("click", (e) => {
+      if (zoomedIdx !== idx || Math.abs(zScale - 1) < 0.05) return; // taps pass through when not ours
+      // Double-tap toggles between 2.2x-at-point and reset.
+      const now = Date.now();
+      const near = Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 40;
+      if (now - lastTapT < 320 && near) {
+        if (zScale > MIN_SCALE) resetZoom(false);
+        else zoomTo(2.2, e.clientX, e.clientY);
+        lastTapT = 0;
+        e.preventDefault();
+        e.stopPropagation();
+      } else {
+        lastTapT = now; lastTapX = e.clientX; lastTapY = e.clientY;
+        e.stopPropagation(); // swallow single taps that belong to the zoom layer
+      }
+    });
+
+    // Desktop: drag to pan, wheel to zoom.
+    media.addEventListener("mousedown", (e) => {
+      if (zScale <= 1) return;
+      const sx = e.clientX - zTx, sy = e.clientY - zTy;
+      const move = (ev) => { zTx = ev.clientX - sx; zTy = ev.clientY - sy; clampPan(img); applyTransform(img, true); };
+      const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+      e.preventDefault();
+    });
+    media.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomTo(zScale * (e.deltaY < 0 ? 1.12 : 0.9), e.clientX, e.clientY);
+    }, { passive: false });
+  }
+  // Bind zoom per slide image (poster excluded).
+  slides.forEach((s, i) => {
+    if (i === POSTER_INDEX) return;
+    const img = s.querySelector("img.full");
+    if (img) setupZoom(img, i);
+  });
   function showToast(msg) {
     toast.textContent = msg;
     toast.classList.add("show");
@@ -797,6 +1203,130 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   const heartBtns = Array.from(slideArea.querySelectorAll(".heart"));
   const likedThisVisitor = new Set();
   const gridCells = Array.from(grid.querySelectorAll(".cell"));
+
+  // ---------- Shortlist (persistent likes -> WhatsApp inquiry) ----------
+  // The shortlist is the durable version of the session's hearts: it survives
+  // reloads (localStorage), feeds the floating pill and the bottom sheet, and
+  // turns browsing into an inquiry via one WhatsApp message listing all designs.
+  const SHORTLIST_KEY = "csm_shortlist";
+  let shortlist = [];
+  try { shortlist = JSON.parse(localStorage.getItem(SHORTLIST_KEY) || "[]"); } catch (e) { shortlist = []; }
+  if (!Array.isArray(shortlist)) shortlist = [];
+  shortlist = shortlist.filter((s) => FILES.some((f) => stem(f) === s));
+  // Seed the heart UI from the persisted shortlist so returning visitors see
+  // their likes as still-liked (no heart delta is re-sent on boot).
+  shortlist.forEach((s) => likedThisVisitor.add(s));
+
+  const slPill = document.getElementById("shortlist-pill");
+  const slCount = document.getElementById("sl-count");
+  const slSheet = document.getElementById("shortlist-sheet");
+  const slBackdrop = document.getElementById("sheet-backdrop");
+  const slThumbs = document.getElementById("sl-thumbs");
+  const slWaSend = document.getElementById("sl-wa-send");
+
+  const fileIndexByStem = {};
+  FILES.forEach((f, i) => { fileIndexByStem[stem(f)] = i; });
+
+  function saveShortlist() {
+    try { localStorage.setItem(SHORTLIST_KEY, JSON.stringify(shortlist)); } catch (e) { /* private mode */ }
+  }
+
+  function shortlistAdd(stemName) {
+    if (!shortlist.includes(stemName)) shortlist.push(stemName);
+    saveShortlist();
+    renderShortlist();
+  }
+  function shortlistRemove(stemName) {
+    shortlist = shortlist.filter((s) => s !== stemName);
+    saveShortlist();
+    renderShortlist();
+  }
+
+  function buildWaMessage() {
+    const lines = shortlist.map((s) => {
+      const i = fileIndexByStem[s];
+      return "• Design #" + (i + 1) + " — " + ORIGIN + "/share?index=" + i;
+    });
+    return (
+      "Hi Chandni Silk Mills! 👋 I shortlisted " + shortlist.length +
+      (shortlist.length === 1 ? " design" : " designs") + " from your catalog:\n\n" +
+      lines.join("\n") +
+      "\n\nCould you share prices and availability?"
+    );
+  }
+
+  function renderShortlist() {
+    slCount.textContent = shortlist.length;
+    slPill.classList.toggle("show", shortlist.length > 0 && !detail.classList.contains("open"));
+
+    if (shortlist.length === 0) {
+      slThumbs.innerHTML = '<div class="sl-empty">No designs yet — tap ♡ on any design you like.</div>';
+      slWaSend.removeAttribute("href");
+      return;
+    }
+    slThumbs.innerHTML = "";
+    shortlist.forEach((s) => {
+      const i = fileIndexByStem[s];
+      if (i === undefined) return;
+      const b = document.createElement("button");
+      b.className = "sl-thumb";
+      b.setAttribute("aria-label", "Remove design " + (i + 1) + " from shortlist");
+      b.innerHTML =
+        '<img src="' + midUrl(FILES[i]) + '" alt="Design ' + (i + 1) + '" loading="lazy" decoding="async">' +
+        '<span class="t-num">#' + (i + 1) + "</span>" +
+        '<span class="t-remove">✕</span>';
+      b.addEventListener("click", () => {
+        // Removing from the sheet also unlikes everywhere (grid badge + slide heart).
+        setLiked(s, false);
+        showToast("Design #" + (i + 1) + " removed from shortlist");
+      });
+      slThumbs.appendChild(b);
+    });
+    slWaSend.href = "https://wa.me/" + WA_NUMBER + "?text=" + encodeURIComponent(buildWaMessage());
+  }
+
+  // Open / close the sheet.
+  function openSheet() { renderShortlist(); slSheet.classList.add("open"); slBackdrop.classList.add("open"); }
+  function closeSheet() { slSheet.classList.remove("open"); slBackdrop.classList.remove("open"); }
+  slPill.addEventListener("click", openSheet);
+  document.getElementById("close-sheet").addEventListener("click", closeSheet);
+  slBackdrop.addEventListener("click", closeSheet);
+
+  // Send -> log as a CTA click so the dashboard shows shortlist inquiries.
+  slWaSend.addEventListener("click", () => {
+    if (!shortlist.length || !slWaSend.getAttribute("href")) return;
+    closeSheet();
+    showToast("Opening WhatsApp…");
+    fetch(API + "?action=ctaClick", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ itemId: "shortlist(" + shortlist.length + ")" }),
+    }).catch(() => {});
+    if (typeof fbq === "function") fbq("track", "Lead", { content_name: "shortlist", num_items: shortlist.length });
+  });
+
+  // Clear all (with one-tap undo so a mis-tap isn't destructive).
+  document.getElementById("sl-clear").addEventListener("click", () => {
+    if (!shortlist.length) return;
+    const previous = shortlist.slice();
+    shortlist.forEach((s) => setLiked(s, false));
+    closeSheet();
+    toast.textContent = "Shortlist cleared";
+    toast.classList.add("show");
+    clearTimeout(showToast._t);
+    const undo = () => {
+      previous.forEach((s) => { shortlistAdd(s); setLikedVisualOnly(s, true); });
+      document.removeEventListener("click", undo, true);
+    };
+    showToast._undo = undo;
+    clearTimeout(showToast._undoT);
+    showToast._undoT = setTimeout(() => {
+      document.removeEventListener("click", undo, true);
+    }, 4000);
+    document.addEventListener("click", undo, true);
+    showToast._t = setTimeout(() => toast.classList.remove("show"), 2000);
+  });
+
   async function loadHearts() {
     try {
       const r = await fetch(API + "?action=hearts");
@@ -811,8 +1341,23 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
         const badge = c.querySelector(".heart-badge");
         if (n > 0) { badge.textContent = "♥ " + n; c.classList.add("show-heart"); }
       });
+      markTrending(hearts);
     } catch (e) { /* keep zeros */ }
   }
+  // Trending badge: 🔥 on the 3 most-hearted designs (needs >1 heart to be
+  // meaningful, otherwise every design with a single like would "trend").
+  function markTrending(hearts) {
+    const ranked = Object.entries(hearts)
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+    const minHearts = ranked.length === 3 ? Math.max(2, ranked[2][1]) : Infinity;
+    gridCells.forEach((c) => {
+      const isTop = ranked.some(([item]) => item === c.dataset.item) && (hearts[c.dataset.item] ?? 0) >= minHearts;
+      c.classList.toggle("trending", isTop);
+    });
+  }
+
   async function sendHeart(itemId, delta) {
     try {
       await fetch(API + "?action=heart", {
@@ -822,26 +1367,60 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       });
     } catch (e) { /* best-effort */ }
   }
+  // Visual-only like state (no server delta) — used when restoring from storage.
+  function setLikedVisualOnly(stemName, liked) {
+    const idx = fileIndexByStem[stemName];
+    if (idx === undefined) return;
+    const btn = heartBtns[idx];
+    const cell = gridCells[idx];
+    if (btn) btn.classList.toggle("liked", liked);
+    if (cell && liked) cell.classList.add("show-heart");
+    if (liked) likedThisVisitor.add(stemName); else likedThisVisitor.delete(stemName);
+  }
+
+  // Full unlike: updates UI everywhere AND removes from the persistent shortlist.
+  function setLiked(stemName, liked) {
+    const idx = fileIndexByStem[stemName];
+    if (idx === undefined) return;
+    const btn = heartBtns[idx];
+    const cell = gridCells[idx];
+    const badge = cell && cell.querySelector(".heart-badge");
+    if (!liked) {
+      likedThisVisitor.delete(stemName);
+      shortlistRemove(stemName);
+      if (btn) {
+        btn.classList.remove("liked");
+        const nEl = btn.querySelector(".n");
+        const n = Math.max(0, Number(nEl.textContent) - 1);
+        nEl.textContent = n;
+      }
+      if (badge && cell) {
+        const nEl = btn ? btn.querySelector(".n") : null;
+        const n = nEl ? Number(nEl.textContent) : 0;
+        badge.textContent = n > 0 ? "♥ " + n : "";
+        if (n <= 0) cell.classList.remove("show-heart");
+      }
+      sendHeart(stemName, -1);
+    }
+  }
+
   function bindHeart(btn, cell) {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       const item = btn.dataset.item;
       const liked = likedThisVisitor.has(item);
       const nEl = btn.querySelector(".n");
       const badge = cell && cell.querySelector(".heart-badge");
       if (liked) {
-        likedThisVisitor.delete(item);
-        btn.classList.remove("liked");
-        const n = Math.max(0, Number(nEl.textContent) - 1);
-        nEl.textContent = n;
-        if (badge) { badge.textContent = n > 0 ? "♥ " + n : ""; if (n <= 0) cell.classList.remove("show-heart"); }
-        sendHeart(item, -1);
+        setLiked(item, false);
       } else {
         likedThisVisitor.add(item);
+        shortlistAdd(item); // likes persist as a WhatsApp-ready shortlist
         btn.classList.add("liked");
         const n = Number(nEl.textContent) + 1;
         nEl.textContent = n;
         if (badge) { badge.textContent = "♥ " + n; cell.classList.add("show-heart"); }
         sendHeart(item, 1);
+        showToast("Added to shortlist ♥");
       }
     });
   }
@@ -862,6 +1441,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   });
 
   // Boot: initial render + visit tracking. Called LAST so all state is initialized.
+  renderShortlist();
   update();
   trackVisit();
 </script>
