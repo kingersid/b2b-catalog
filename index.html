@@ -950,7 +950,8 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     morphTimer = setTimeout(triggerMorph, 2000);
   }
 
-  // CTA tap: dismiss the morph and log the event.
+  // CTA tap: dismiss the morph, then open the swipe view starting at
+  // design #2 (design #1 is already shown as the hero).
   document.getElementById("morph-cta-btn").addEventListener("click", () => {
     dismissMorph();
     fetch(API + "?action=ctaClick", {
@@ -958,6 +959,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ itemId: "heroSwipeUp" }),
     }).catch(() => {});
+    setTimeout(() => openDetail(1), 300);
   });
 
   // Scrolling down (swipe up) also dismisses the morph — the grid
