@@ -12,6 +12,7 @@
 //
 // Persistence: Cloudflare D1 (SQLite) via the CATALOG_DB binding. Schema in schema.sql.
 // Dashboard access key: DASH_KEY binding (set via `wrangler pages secret put DASH_KEY`).
+// Force redeploy to pick up DASH_KEY secret.
 
 // CORS: the catalog can be opened from file:// (null origin) for local preview, so
 // allow any origin. The catalog itself never sends credentials.
