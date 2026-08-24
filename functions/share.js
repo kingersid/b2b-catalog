@@ -28,7 +28,8 @@ const FILES = [
   "819d3441-207b-4355-8c0a-c6d3dc743341.jpg","IMG_8453.JPG",
   "IMG_8928.JPG","IMG_8930.JPG","IMG_9078.JPG",
   "IMG_9199.JPG","IMG_9662.JPG",
-    "98edd9f5-d59b-4b28-aba8-e6eb16a4befe.jpg"
+    "98edd9f5-d59b-4b28-aba8-e6eb16a4befe.jpg",
+    "verify-fix.jpg"
   ];
 
 const stem = (f) => f.replace(/\.[^.]+$/, "");
