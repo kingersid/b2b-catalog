@@ -886,30 +886,6 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   let active = 0;       // current slide index (0..POSTER_INDEX)
 
   // ============================================================
-  // GRID
-  // ============================================================
-  document.getElementById("grid-count").textContent = TOTAL;
-  document.getElementById("cta-count").textContent = TOTAL;
-  FILES.forEach((f, i) => {
-    const cell = document.createElement("button");
-    cell.className = "cell";
-    cell.dataset.item = stem(f);
-    cell.setAttribute("aria-label", "Open design " + (i + 1));
-    // First row eager + high priority (LCP), the rest lazy.
-    cell.innerHTML =
-      '<span class="loading">…</span>' +
-      '<img alt="Design ' + (i + 1) + '" src="' + midUrl(f) + '"' +
-      (i < 6 ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"') +
-      ' decoding="async">' +
-      '<span class="num">#' + (i + 1) + "</span>" +
-      '<span class="heart-badge"></span>' +
-      '<span class="trend" title="Trending — one of the most liked designs">🔥</span>';
-    cell.querySelector("img").addEventListener("load", () => cell.classList.add("loaded"), { once: true });
-    cell.addEventListener("click", () => openDetail(i));
-    grid.appendChild(cell);
-  });
-
-  // ============================================================
   // GRID MORPH: grid loads normally, then after 2s on first visit
   // design #1 expands into a hero and the rest fades out. A CTA
   // rises over the hero; tapping it (or scrolling) reverses the
@@ -999,22 +975,8 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     poster.querySelector(".back-to-grid").addEventListener("click", closeDetail);
     slideArea.appendChild(poster);
   }
-  buildSlides();
-
-  // Track which slide is active (one slide per viewport thanks to snap).
-  const slides = Array.from(slideArea.children);
-  const io = new IntersectionObserver((entries) => {
-    for (const e of entries) {
-      if (e.isIntersecting) {
-        const idx = Number(e.target.dataset.index);
-        if (idx !== active) {
-          if (zoomedIdx >= 0 && zoomedIdx !== idx) resetZoom(true); // leaving a zoomed slide
-          active = idx; update();
-        }
-      }
-    }
-  }, { threshold: 0.5 });
-  slides.forEach((s) => io.observe(s));
+  // Slides, observer, zoom, hearts — all initialized after designs load (see initDetail)
+  let slides = [];
 
   // Upgrade the active slide's mid-res image to full-res (webp/) in the background.
   const upgraded = new Set();
@@ -1065,15 +1027,16 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   const MIN_SCALE = 1, MAX_SCALE = 4;
   let zScale = 1, zTx = 0, zTy = 0;         // current transform
   let zoomedIdx = -1;                        // which slide img is zoomed
-  const zoomHint = document.querySelector(".zoom-hint");
+  let zoomHint = null; // re-queried after slides are built in initDetail()
   let hintShown = false;
 
   function showZoomHint() {
     if (hintShown) return;
     hintShown = true;
-    if (!zoomHint) return;
-    zoomHint.classList.add("show");
-    setTimeout(() => zoomHint.classList.remove("show"), 2600);
+    const el = zoomHint || document.querySelector(".zoom-hint");
+    if (!el) return;
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 2600);
   }
 
   function applyTransform(img, immediate) {
@@ -1212,12 +1175,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       zoomTo(zScale * (e.deltaY < 0 ? 1.12 : 0.9), e.clientX, e.clientY);
     }, { passive: false });
   }
-  // Bind zoom per slide image (poster excluded).
-  slides.forEach((s, i) => {
-    if (i === POSTER_INDEX) return;
-    const img = s.querySelector("img.full");
-    if (img) setupZoom(img, i);
-  });
+  // Zoom bound after designs load (see initDetail)
   function showToast(msg) {
     toast.textContent = msg;
     toast.classList.add("show");
@@ -1340,9 +1298,9 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   }
 
   // ---------- Hearts ----------
-  const heartBtns = Array.from(slideArea.querySelectorAll(".heart"));
+  let heartBtns = [];
   const likedThisVisitor = new Set();
-  const gridCells = Array.from(grid.querySelectorAll(".cell"));
+  let gridCells = [];
 
   // ---------- Shortlist (persistent likes -> WhatsApp inquiry) ----------
   // The shortlist is the durable version of the session's hearts: it survives
@@ -1352,10 +1310,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   let shortlist = [];
   try { shortlist = JSON.parse(localStorage.getItem(SHORTLIST_KEY) || "[]"); } catch (e) { shortlist = []; }
   if (!Array.isArray(shortlist)) shortlist = [];
-  shortlist = shortlist.filter((s) => FILES.some((f) => stem(f) === s));
-  // Seed the heart UI from the persisted shortlist so returning visitors see
-  // their likes as still-liked (no heart delta is re-sent on boot).
-  shortlist.forEach((s) => likedThisVisitor.add(s));
+  // shortlist filtered + likedThisVisitor seeded after designs load (see initDetail)
 
   const slPill = document.getElementById("shortlist-pill");
   const slCount = document.getElementById("sl-count");
@@ -1364,8 +1319,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   const slThumbs = document.getElementById("sl-thumbs");
   const slWaSend = document.getElementById("sl-wa-send");
 
-  const fileIndexByStem = {};
-  FILES.forEach((f, i) => { fileIndexByStem[stem(f)] = i; });
+  let fileIndexByStem = {};
 
   function saveShortlist() {
     try { localStorage.setItem(SHORTLIST_KEY, JSON.stringify(shortlist)); } catch (e) { /* private mode */ }
@@ -1564,8 +1518,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       }
     });
   }
-  heartBtns.forEach((b, i) => bindHeart(b, gridCells[i]));
-  loadHearts();
+  // Hearts bound after designs load (see initDetail)
 
   // ---------- WhatsApp video-call CTA: Meta Pixel Lead + per-design D1 log ----------
   waCta.addEventListener("click", function () {
@@ -1580,11 +1533,71 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     }).catch(() => {});
   });
 
-  // Boot: load designs from API first, then init everything
+  // ============================================================
+  // BOOT: load designs from D1 API, then build all UI
+  // ============================================================
+  function initGrid() {
+    grid.innerHTML = "";
+    document.getElementById("grid-count").textContent = TOTAL;
+    document.getElementById("cta-count").textContent = TOTAL;
+    FILES.forEach((f, i) => {
+      const cell = document.createElement("button");
+      cell.className = "cell";
+      cell.dataset.item = stem(f);
+      cell.setAttribute("aria-label", "Open design " + (i + 1));
+      cell.innerHTML =
+        '<span class="loading">…</span>' +
+        '<img alt="Design ' + (i + 1) + '" src="' + midUrl(f) + '"' +
+        (i < 6 ? ' loading="eager" fetchpriority="high"' : ' loading="lazy"') +
+        ' decoding="async">' +
+        '<span class="num">#' + (i + 1) + "</span>" +
+        '<span class="heart-badge"></span>' +
+        '<span class="trend" title="Trending — one of the most liked designs">🔥</span>';
+      cell.querySelector("img").addEventListener("load", () => cell.classList.add("loaded"), { once: true });
+      cell.addEventListener("click", () => openDetail(i));
+      grid.appendChild(cell);
+    });
+  }
+
+  function initDetail() {
+    buildSlides();
+    slides = Array.from(slideArea.children);
+    // Track which slide is active (one slide per viewport thanks to snap).
+    const observer = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const idx = Number(e.target.dataset.index);
+          if (idx !== active) {
+            if (zoomedIdx >= 0 && zoomedIdx !== idx) resetZoom(true);
+            active = idx; update();
+          }
+        }
+      }
+    }, { threshold: 0.5 });
+    slides.forEach((s) => observer.observe(s));
+    // Bind zoom per slide image (poster excluded).
+    slides.forEach((s, i) => {
+      if (i === POSTER_INDEX) return;
+      const img = s.querySelector("img.full");
+      if (img) setupZoom(img, i);
+    });
+    heartBtns = Array.from(slideArea.querySelectorAll(".heart"));
+    gridCells = Array.from(grid.querySelectorAll(".cell"));
+    // Build fileIndexByStem lookup.
+    fileIndexByStem = {};
+    FILES.forEach((f, i) => { fileIndexByStem[stem(f)] = i; });
+    // Filter shortlist to only valid designs.
+    shortlist = shortlist.filter((s) => FILES.some((f) => stem(f) === s));
+    // Seed the heart UI from the persisted shortlist.
+    shortlist.forEach((s) => likedThisVisitor.add(s));
+    // Bind heart buttons.
+    heartBtns.forEach((b, i) => bindHeart(b, gridCells[i]));
+    loadHearts();
+  }
+
   loadDesigns().then(() => {
     TOTAL = FILES.length;
     POSTER_INDEX = TOTAL;
-    buildSlides();
     initGrid();
     initDetail();
     renderShortlist();
