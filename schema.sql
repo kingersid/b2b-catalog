@@ -41,3 +41,13 @@ CREATE TABLE IF NOT EXISTS prices (
   item_id TEXT PRIMARY KEY,
   price   INTEGER NOT NULL         -- price in whole rupees
 );
+
+-- Catalog design list — rows instead of hard-coded FILES arrays in index.html/media.js.
+-- R2 holds the images; D1 holds the metadata + display order.
+CREATE TABLE IF NOT EXISTS designs (
+  design_id   TEXT PRIMARY KEY,          -- filename stem, e.g. "img_8327" or uuid
+  name        TEXT NOT NULL DEFAULT '',  -- display label; falls back to design_id
+  sort_order  INTEGER NOT NULL DEFAULT 0,-- grid order (0 first)
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  active      INTEGER NOT NULL DEFAULT 1  -- 0 = hidden (soft delete)
+);

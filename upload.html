@@ -16,7 +16,7 @@
   h1 { font-size: 22px; margin-bottom: 4px; }
   .sub { color: #888; font-size: 13px; margin-bottom: 24px; }
   label { display: block; font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: .08em; margin: 18px 0 6px; }
-  input[type="text"], input[type="password"] {
+  input[type="password"] {
     width: 100%; padding: 14px; font-size: 16px; border-radius: 12px;
     border: 1px solid #2a2a33; background: #15151c; color: #eee;
   }
@@ -38,7 +38,7 @@
 </head>
 <body>
 <h1>📷 Add Designs to Catalog</h1>
-<p class="sub">Pick photos from your gallery — they go live in ~2 minutes.</p>
+<p class="sub">Pick photos from your gallery — they go live in ~2 seconds.</p>
 
 <label for="key">Access key</label>
 <input type="password" id="key" placeholder="Your upload key" autocomplete="off">
@@ -59,7 +59,7 @@ const $ = (id) => document.getElementById(id);
 $("key").value = localStorage.getItem("uploadKey") || "";
 $("key").addEventListener("change", () => localStorage.setItem("uploadKey", $("key").value));
 
-let picked = []; // { name, jpgBlob, midBlob, fullWebpBlob, previewUrl }
+let picked = []; // { name, blob, previewUrl }
 
 $("pick").onclick = () => $("files").click();
 $("files").addEventListener("change", async (e) => {
@@ -74,11 +74,8 @@ $("files").addEventListener("change", async (e) => {
         $("status").textContent += "\n⚠️ Skipped landscape photo (" + bmp.width + "×" + bmp.height + ")";
         continue;
       }
-      const name = crypto.randomUUID().toLowerCase() + ".jpg";
-      const jpg = await render(bmp, null, "image/jpeg", 0.92);          // original size
-      const mid = await render(bmp, 1000, "image/webp", 0.72);          // mid/ 1000px
-      const full = await render(bmp, 1600, "image/webp", 0.75);         // webp/ 1600px
-      picked.push({ name, jpg, mid, full, previewUrl: URL.createObjectURL(jpg) });
+      const blob = await render(bmp, 1800, "image/jpeg", 0.9);
+      picked.push({ name: f.name, blob, previewUrl: URL.createObjectURL(blob) });
       bmp.close();
     } catch (err) {
       $("status").textContent += "\n⚠️ Could not read " + f.name;
@@ -123,39 +120,33 @@ $("go").onclick = async () => {
   $("go").disabled = true;
   status("Uploading…");
 
-  // Build one multipart request: all three sizes per design
-  const form = new FormData();
-  form.append("key", key);
-  const meta = [];
-  const stem = (n) => n.replace(/\.jpg$/, "");
-  picked.forEach((p, i) => {
-    form.append("file_" + i + "_jpg", p.jpg, p.name);
-    form.append("file_" + i + "_mid", p.mid, stem(p.name) + ".webp");
-    form.append("file_" + i + "_full", p.full, stem(p.name) + ".webp");
-    meta.push(
-      { field: "file_" + i + "_jpg", path: p.name },
-      { field: "file_" + i + "_mid", path: "mid/" + stem(p.name) + ".webp" },
-      { field: "file_" + i + "_full", path: "webp/" + stem(p.name) + ".webp" }
-    );
-  });
-  form.append("meta", JSON.stringify(meta));
+  // Upload each photo sequentially (simpler progress, avoids parallel rate limits)
+  for (let i = 0; i < picked.length; i++) {
+    const p = picked[i];
+    status("Uploading " + (i + 1) + " of " + picked.length + "…");
+    
+    const form = new FormData();
+    form.append("key", key);
+    form.append("design", p.blob, p.name);
 
-  try {
-    const resp = await fetch(API, { method: "POST", body: form });
-    const data = await resp.json();
-    if (!resp.ok || !data.ok) throw new Error(data.error || resp.status);
-    status(
-      "✅ Uploaded! Commit " + data.commit + "\n" +
-      data.added.join(", ") + "\n\nLive in the catalog in about 2 minutes.",
-      false
-    );
-    picked = [];
-    showGrid();
-  } catch (err) {
-    status("❌ " + err.message, true);
-  } finally {
-    $("go").disabled = false;
+    try {
+      const resp = await fetch(API, { method: "POST", body: form });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || resp.status);
+    } catch (err) {
+      status("❌ " + err.message, true);
+      $("go").disabled = false;
+      return;
+    }
   }
+
+  status(
+    "✅ Uploaded " + picked.length + " design" + (picked.length > 1 ? "s" : "") + "!\n\nLive in the catalog in about 2 seconds.",
+    false
+  );
+  picked = [];
+  showGrid();
+  $("go").disabled = false;
 };
 
 function status(msg, isErr) {

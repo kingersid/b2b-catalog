@@ -1,75 +1,36 @@
-// Chandni Silk Mills catalog — iPhone upload endpoint (Pages Function).
+// Chandni Silk Mills catalog — upload endpoint (Pages Function).
 //
 //   POST /api/upload   multipart/form-data:
-//     key      -> must equal the UPLOAD_KEY secret (wrangler pages secret put UPLOAD_KEY)
-//     files    -> one or more images. Each file field carries:
-//                 - blob bytes (the optimized JPG/WebP produced client-side)
-//                 - form fields sent alongside (see upload.html): name, path
-//     meta     -> JSON array [{ name, path }, ...] matching the file order
+//     key    -> must equal the UPLOAD_KEY secret (only the owner can upload)
+//     design -> one image file (the optimized JPG produced client-side)
 //
-// What it does (mirrors scripts/add-from-gphotos.mjs):
-//   1. Verifies the shared key (only the owner can upload).
-//   2. Commits the image files + regenerated FILES arrays (index.html,
-//      media.js, functions/share.js) to the repo's main branch in ONE commit.
-//   3. GitHub Actions auto-deploys to Cloudflare Pages (~2 min).
+// What it does:
+//   1. Verifies the shared key.
+//   2. Puts the original image to R2 as designs/original/{id}.jpg
+//   3. Inserts a row into the `designs` table.
+//   4. Returns the design record — live in the catalog in ~1 second.
 //
 // Required secrets (set once):
 //   npx wrangler pages secret put UPLOAD_KEY
-//   npx wrangler pages secret put GITHUB_TOKEN   (fine-grained token: Contents RW on kingersid/b2b-catalog)
 
-const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "content-type" };
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
+
 const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...CORS } });
-
-const REPO = "kingersid/b2b-catalog";
-const BRANCH = "main";
-const LIST_FILES = [
-  { path: "index.html", marker: "const FILES = [" },
-  { path: "media.js", marker: "window.CATALOG_FILES = [" },
-  { path: "functions/share.js", marker: "const FILES = [" },
-];
-
-function gh(token, path, opts = {}) {
-  return fetch(`https://api.github.com${path}`, {
-    ...opts,
-    headers: {
-      authorization: `Bearer ${token}`,
-      accept: "application/vnd.github+json",
-      "user-agent": "chandni-catalog-upload",
-      ...(opts.headers || {}),
-    },
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...CORS },
   });
-}
-
-// Insert `"filename"` before the closing ] of the FILES array (same logic as add-from-gphotos.mjs).
-// `marker` differs per file (index.html/share.js use `const FILES = [`, media.js uses
-// `window.CATALOG_FILES = [`), so it MUST be passed in — hardcoding one marker made the
-// depth-walk start at the first `[` anywhere in media.js and corrupt an unrelated array.
-function addToFileArray(content, filename, marker) {
-  const entry = `"${filename}"`;
-  if (content.includes(filename)) return null;
-  const filesIdx = content.indexOf(marker);
-  if (filesIdx === -1) throw new Error(`marker not found: ${marker}`);
-  const start = content.indexOf("[", filesIdx);
-  let depth = 0, arrayEnd = -1;
-  for (let i = start; i < content.length; i++) {
-    if (content[i] === "[") depth++;
-    if (content[i] === "]") depth--;
-    if (depth === 0) { arrayEnd = i; break; }
-  }
-  if (arrayEnd === -1) throw new Error("FILES array not found");
-  const before = content.slice(0, arrayEnd).trimEnd();
-  return before + ",\n    " + entry + "\n  " + content.slice(arrayEnd);
-}
 
 export async function onRequestOptions() {
   return new Response(null, { status: 204, headers: CORS });
 }
 
 export async function onRequestPost({ request, env }) {
-  const token = env.GITHUB_TOKEN;
   const expectedKey = env.UPLOAD_KEY;
-  if (!token) return json({ error: "GITHUB_TOKEN not configured" }, 503);
   if (!expectedKey) return json({ error: "UPLOAD_KEY not configured" }, 503);
 
   let form;
@@ -83,117 +44,40 @@ export async function onRequestPost({ request, env }) {
   const key = String(form.get("key") || "");
   if (key !== expectedKey) return json({ error: "Wrong key" }, 401);
 
-  const metaRaw = form.get("meta");
-  let meta;
-  try {
-    meta = JSON.parse(String(metaRaw || "[]"));
-  } catch {
-    return json({ error: "Bad meta" }, 400);
+  const file = form.get("design");
+  if (!(file instanceof File)) return json({ error: "Missing design file" }, 400);
+
+  // Only accept JPEG/WEBP (the client produces these)
+  if (!/\.(jpg|jpeg|webp)$/i.test(file.name)) {
+    return json({ error: "Only JPG and WEBP accepted" }, 400);
   }
 
-  const uploads = [];
-  for (const m of meta) {
-    const file = form.get(m.field);
-    if (!(file instanceof File)) return json({ error: `Missing file ${m.field}` }, 400);
-    // Allowed destinations: root JPG originals + mid/ and webp/ WebP variants
-    if (!/^[\w-]+\.jpg$/i.test(m.path) && !/^(mid|webp)\/[\w-]+\.webp$/i.test(m.path))
-      return json({ error: `Bad destination path ${m.path}` }, 400);
-    uploads.push({ name: m.path.split("/").pop(), path: m.path, bytes: await file.arrayBuffer() });
-  }
-  if (!uploads.length) return json({ error: "No files" }, 400);
-
-  // The catalog list only contains original filenames (JPGs)
-  const jpgNames = [...new Set(uploads.filter((u) => /\.jpg$/i.test(u.path)).map((u) => u.name))];
+  // Unique ID from UUID; friendly name from the original filename stem
+  const designId = crypto.randomUUID().toLowerCase();
+  const ext = file.name.split(".").pop().toLowerCase() === "webp" ? "webp" : "jpg";
+  const name = file.name.replace(/\.[^.]+$/, "").slice(0, 80); // filename stem for display
 
   try {
-    // 1. Current branch head
-    const refResp = await gh(token, `/repos/${REPO}/git/ref/heads/${BRANCH}`);
-    if (!refResp.ok) return json({ error: "Cannot read branch ref: " + refResp.status }, 500);
-    const baseSha = (await refResp.json()).object.sha;
+    const bytes = await file.arrayBuffer();
 
-    const commitResp = await gh(token, `/repos/${REPO}/commits/${baseSha}`);
-    if (!commitResp.ok) return json({ error: "Cannot read base commit: " + commitResp.status }, 500);
-    const baseTree = (await commitResp.json()).commit.tree.sha;
-
-    // 2. Create blobs for the images
-    const tree = [];
-    for (const u of uploads) {
-      const blobResp = await gh(token, `/repos/${REPO}/git/blobs`, {
-        method: "POST",
-        body: JSON.stringify({ content: b64(u.bytes), encoding: "base64" }),
-      });
-      if (!blobResp.ok) return json({ error: `Blob failed for ${u.name}: ${blobResp.status}` }, 500);
-      tree.push({ path: u.path, mode: "100644", type: "blob", sha: (await blobResp.json()).sha });
-    }
-
-    // 3. Update the FILES arrays so the catalog picks up the new designs
-    for (const lf of LIST_FILES) {
-      // Must request raw, otherwise the contents API returns a JSON envelope
-      // ({name, sha, content: <base64>, ...}) and we'd splice filenames into JSON.
-      const rawResp = await gh(token, `/repos/${REPO}/contents/${lf.path}?ref=${BRANCH}`, {
-        headers: { accept: "application/vnd.github.raw" },
-      });
-      if (!rawResp.ok) continue; // skip missing file rather than fail the whole upload
-      const current = await rawResp.text();
-      // Add every new JPG filename to the array (variants share stems, so only JPGs are listed)
-      let content = current;
-      let changed = false;
-      for (const name of jpgNames) {
-        const updated = addToFileArray(content, name, lf.marker);
-        if (updated) { content = updated; changed = true; }
-      }
-      if (!changed) continue;
-      const blobResp = await gh(token, `/repos/${REPO}/git/blobs`, {
-        method: "POST",
-        body: JSON.stringify({ content: utf8ToB64(content), encoding: "base64" }),
-      });
-      if (blobResp.ok) tree.push({ path: lf.path, mode: "100644", type: "blob", sha: (await blobResp.json()).sha });
-    }
-
-    // 4. One commit with everything
-    const treeResp = await gh(token, `/repos/${REPO}/git/trees`, {
-      method: "POST",
-      body: JSON.stringify({ base_tree: baseTree, tree }),
+    // 1. Put image to R2 (original + derived sizes remain a client concern;
+    //    for now we store the original — catalog renders via this object).
+    const r2Key = `designs/original/${designId}.${ext}`;
+    await env.DESIGNS_BUCKET.put(r2Key, bytes, {
+      httpMetadata: { contentType: ext === "webp" ? "image/webp" : "image/jpeg" },
     });
-    if (!treeResp.ok) return json({ error: "Tree failed: " + treeResp.status }, 500);
-    const newTree = (await treeResp.json()).sha;
 
-    const newCommitResp = await gh(token, `/repos/${REPO}/git/commits`, {
-      method: "POST",
-      body: JSON.stringify({
-        message: `Add ${uploads.length} design(s) via iPhone upload`,
-        tree: newTree,
-        parents: [baseSha],
-      }),
-    });
-    if (!newCommitResp.ok) return json({ error: "Commit failed: " + newCommitResp.status }, 500);
-    const newCommit = (await newCommitResp.json()).sha;
+    // 2. Insert into D1 designs table
+    await env.CATALOG_DB.prepare(
+      "INSERT INTO designs (design_id, name, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM designs))"
+    ).bind(designId, name).run();
 
-    const pushResp = await gh(token, `/repos/${REPO}/git/refs/heads/${BRANCH}`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: newCommit }),
-    });
-    if (!pushResp.ok) return json({ error: "Push failed: " + pushResp.status }, 500);
+    const created = await env.CATALOG_DB.prepare(
+      "SELECT design_id, name, sort_order, created_at, active FROM designs WHERE design_id = ?"
+    ).bind(designId).first();
 
-    return json({ ok: true, commit: newCommit.slice(0, 7), added: uploads.map((u) => u.name) });
+    return json({ ok: true, design: created, url: `/designs/original/${designId}.${ext}` });
   } catch (e) {
     return json({ error: e.message }, 500);
   }
-}
-
-function b64(buf) {
-  let binary = "";
-  const bytes = new Uint8Array(buf);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
-// btoa() throws on any codepoint > 0xFF, and index.html contains ₹ / emoji.
-// Encode to UTF-8 bytes first. (Replaces the Buffer usage, which is undefined
-// in Pages Functions unless compatibility_flags = ["nodejs_compat"].)
-function utf8ToB64(str) {
-  return b64(new TextEncoder().encode(str).buffer);
 }
