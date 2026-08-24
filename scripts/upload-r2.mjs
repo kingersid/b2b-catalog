@@ -1,5 +1,11 @@
+// Upload all catalog images to R2 using wrangler CLI
+// Run: node scripts/upload-r2.mjs
+
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+
+const BUCKET = 'chandni-catalog-assets';
 
 const FILES = [
   "03802cfb-7199-4a28-9553-adb938b57daa.jpg","0654584a-8f7a-4fc8-b625-cfefcefe5a62.jpg",
@@ -32,37 +38,32 @@ const FILES = [
 
 const stem = (f) => f.replace(/\.[^.]+$/, '').toLowerCase();
 
-// Generate D1 seed SQL
-const sql = FILES.map((f, i) => {
+console.log(`Uploading ${FILES.length} images to R2...`);
+
+let success = 0;
+let failed = 0;
+
+for (const f of FILES) {
   const id = stem(f);
-  return `INSERT OR IGNORE INTO designs (design_id, name, sort_order) VALUES ('${id}', '${f.replace(/'/g, "''")}', ${i});`;
-}).join('\n');
-
-fs.writeFileSync('/tmp/seed-designs.sql', sql);
-console.log('Generated seed SQL with', FILES.length, 'designs');
-
-// Now upload each image to R2
-const cwd = process.cwd();
-(async () => {
-  for (const f of FILES) {
-    const id = stem(f);
-    const localPath = path.join(cwd, f);
-    
-    if (!fs.existsSync(localPath)) {
-      console.log('⚠️ Missing:', f);
-      continue;
-    }
-    
-    const data = fs.readFileSync(localPath);
-    const ext = f.split('.').pop().toLowerCase();
-    const contentType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/webp';
-    
-    console.log('Uploading to R2:', `designs/original/${id}.jpg`);
-    
-    // Use Cloudflare API to upload to R2
-    const ACCOUNT_ID = 'e80e472d0cd0037855bc396a3b7f7d97';
-    const BUCKET = 'chandni-catalog-assets';
-    
-    // For now, just log what needs to be uploaded
+  const key = `designs/original/${id}.jpg`;
+  
+  if (!fs.existsSync(f)) {
+    console.log(`⚠️ Missing: ${f}`);
+    failed++;
+    continue;
   }
-})();
+  
+  try {
+    execSync(
+      `npx wrangler r2 object put "${BUCKET}/${key}" --file="${f}" --content-type=image/jpeg --remote`,
+      { stdio: 'pipe', timeout: 30000 }
+    );
+    success++;
+    console.log(`✓ ${f}`);
+  } catch (e) {
+    failed++;
+    console.log(`✗ ${f}: ${e.message.slice(0, 100)}`);
+  }
+}
+
+console.log(`\nDone: ${success} uploaded, ${failed} failed`);
