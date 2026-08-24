@@ -42,10 +42,14 @@ function gh(token, path, opts = {}) {
 }
 
 // Insert `"filename"` before the closing ] of the FILES array (same logic as add-from-gphotos.mjs).
-function addToFileArray(content, filename) {
+// `marker` differs per file (index.html/share.js use `const FILES = [`, media.js uses
+// `window.CATALOG_FILES = [`), so it MUST be passed in — hardcoding one marker made the
+// depth-walk start at the first `[` anywhere in media.js and corrupt an unrelated array.
+function addToFileArray(content, filename, marker) {
   const entry = `"${filename}"`;
   if (content.includes(filename)) return null;
-  const filesIdx = content.indexOf("const FILES = [");
+  const filesIdx = content.indexOf(marker);
+  if (filesIdx === -1) throw new Error(`marker not found: ${marker}`);
   const start = content.indexOf("[", filesIdx);
   let depth = 0, arrayEnd = -1;
   for (let i = start; i < content.length; i++) {
@@ -123,20 +127,24 @@ export async function onRequestPost({ request, env }) {
 
     // 3. Update the FILES arrays so the catalog picks up the new designs
     for (const lf of LIST_FILES) {
-      const rawResp = await gh(token, `/repos/${REPO}/contents/${lf.path}?ref=${BRANCH}`);
+      // Must request raw, otherwise the contents API returns a JSON envelope
+      // ({name, sha, content: <base64>, ...}) and we'd splice filenames into JSON.
+      const rawResp = await gh(token, `/repos/${REPO}/contents/${lf.path}?ref=${BRANCH}`, {
+        headers: { accept: "application/vnd.github.raw" },
+      });
       if (!rawResp.ok) continue; // skip missing file rather than fail the whole upload
-      const current = Buffer.from(await rawResp.arrayBuffer()).toString("utf8");
+      const current = await rawResp.text();
       // Add every new JPG filename to the array (variants share stems, so only JPGs are listed)
       let content = current;
       let changed = false;
       for (const name of jpgNames) {
-        const updated = addToFileArray(content, name);
+        const updated = addToFileArray(content, name, lf.marker);
         if (updated) { content = updated; changed = true; }
       }
       if (!changed) continue;
       const blobResp = await gh(token, `/repos/${REPO}/git/blobs`, {
         method: "POST",
-        body: JSON.stringify({ content: Buffer.from(content, "utf8").toString("base64"), encoding: "base64" }),
+        body: JSON.stringify({ content: utf8ToB64(content), encoding: "base64" }),
       });
       if (blobResp.ok) tree.push({ path: lf.path, mode: "100644", type: "blob", sha: (await blobResp.json()).sha });
     }
@@ -180,4 +188,11 @@ function b64(buf) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
   return btoa(binary);
+}
+
+// btoa() throws on any codepoint > 0xFF, and index.html contains ₹ / emoji.
+// Encode to UTF-8 bytes first. (Replaces the Buffer usage, which is undefined
+// in Pages Functions unless compatibility_flags = ["nodejs_compat"].)
+function utf8ToB64(str) {
+  return b64(new TextEncoder().encode(str).buffer);
 }
