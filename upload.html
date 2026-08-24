@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<title>Add Designs — Chandni Silk Mills</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b0b0f; color: #eee; min-height: 100vh;
+    padding: max(20px, env(safe-area-inset-top)) 20px 40px;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #888; font-size: 13px; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; color: #999; text-transform: uppercase; letter-spacing: .08em; margin: 18px 0 6px; }
+  input[type="text"], input[type="password"] {
+    width: 100%; padding: 14px; font-size: 16px; border-radius: 12px;
+    border: 1px solid #2a2a33; background: #15151c; color: #eee;
+  }
+  #pick {
+    width: 100%; padding: 22px; margin-top: 24px; font-size: 17px; font-weight: 600;
+    border-radius: 16px; border: none; background: linear-gradient(135deg, #7c3aed, #db2777);
+    color: #fff;
+  }
+  #pick:active { opacity: .8; }
+  #go {
+    width: 100%; padding: 18px; margin-top: 16px; font-size: 17px; font-weight: 700;
+    border-radius: 16px; border: none; background: #16a34a; color: #fff; display: none;
+  }
+  #status { margin-top: 16px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+  .ok { color: #4ade80; } .err { color: #f87171; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; margin-top: 16px; }
+  #grid img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 10px; }
+</style>
+</head>
+<body>
+<h1>📷 Add Designs to Catalog</h1>
+<p class="sub">Pick photos from your gallery — they go live in ~2 minutes.</p>
+
+<label for="key">Access key</label>
+<input type="password" id="key" placeholder="Your upload key" autocomplete="off">
+
+<label for="files">Photos (portrait only)</label>
+<input type="file" id="files" accept="image/*" multiple style="display:none">
+<button id="pick">＋ Select from Gallery</button>
+
+<div id="grid"></div>
+<button id="go">⬆ Upload N designs</button>
+<div id="status"></div>
+
+<script>
+const API = location.origin + "/api/upload";
+const $ = (id) => document.getElementById(id);
+
+// Remember the key on this phone
+$("key").value = localStorage.getItem("uploadKey") || "";
+$("key").addEventListener("change", () => localStorage.setItem("uploadKey", $("key").value));
+
+let picked = []; // { name, jpgBlob, midBlob, fullWebpBlob, previewUrl }
+
+$("pick").onclick = () => $("files").click();
+$("files").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  $("status").textContent = "Processing " + files.length + " photo(s)…";
+  picked = [];
+  for (const f of files) {
+    try {
+      const bmp = await createImageBitmap(f, { imageOrientation: "from-image" });
+      if (bmp.width > bmp.height) {
+        $("status").textContent += "\n⚠️ Skipped landscape photo (" + bmp.width + "×" + bmp.height + ")";
+        continue;
+      }
+      const name = crypto.randomUUID().toLowerCase() + ".jpg";
+      const jpg = await render(bmp, null, "image/jpeg", 0.92);          // original size
+      const mid = await render(bmp, 1000, "image/webp", 0.72);          // mid/ 1000px
+      const full = await render(bmp, 1600, "image/webp", 0.75);         // webp/ 1600px
+      picked.push({ name, jpg, mid, full, previewUrl: URL.createObjectURL(jpg) });
+      bmp.close();
+    } catch (err) {
+      $("status").textContent += "\n⚠️ Could not read " + f.name;
+    }
+  }
+  showGrid();
+});
+
+function render(bmp, maxSize, type, quality) {
+  const canvas = document.createElement("canvas");
+  let w = bmp.width, h = bmp.height;
+  if (maxSize) {
+    const scale = Math.min(1, maxSize / Math.max(w, h));
+    w = Math.round(w * scale); h = Math.round(h * scale);
+  }
+  canvas.width = w; canvas.height = h;
+  canvas.getContext("2d").drawImage(bmp, 0, 0, w, h);
+  return new Promise((res) => canvas.toBlob(res, type, quality));
+}
+
+function showGrid() {
+  $("grid").innerHTML = "";
+  picked.forEach((p) => {
+    const img = new Image();
+    img.src = p.previewUrl;
+    $("grid").appendChild(img);
+  });
+  const btn = $("go");
+  if (picked.length) {
+    btn.style.display = "block";
+    btn.textContent = "⬆ Upload " + picked.length + " design" + (picked.length > 1 ? "s" : "");
+  } else {
+    btn.style.display = "none";
+  }
+  $("status").textContent = picked.length ? "Ready to upload." : "";
+}
+
+$("go").onclick = async () => {
+  const key = $("key").value.trim();
+  if (!key) { status("Enter your access key first.", true); return; }
+
+  $("go").disabled = true;
+  status("Uploading…");
+
+  // Build one multipart request: all three sizes per design
+  const form = new FormData();
+  form.append("key", key);
+  const meta = [];
+  const stem = (n) => n.replace(/\.jpg$/, "");
+  picked.forEach((p, i) => {
+    form.append("file_" + i + "_jpg", p.jpg, p.name);
+    form.append("file_" + i + "_mid", p.mid, stem(p.name) + ".webp");
+    form.append("file_" + i + "_full", p.full, stem(p.name) + ".webp");
+    meta.push(
+      { field: "file_" + i + "_jpg", path: p.name },
+      { field: "file_" + i + "_mid", path: "mid/" + stem(p.name) + ".webp" },
+      { field: "file_" + i + "_full", path: "webp/" + stem(p.name) + ".webp" }
+    );
+  });
+  form.append("meta", JSON.stringify(meta));
+
+  try {
+    const resp = await fetch(API, { method: "POST", body: form });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || resp.status);
+    status(
+      "✅ Uploaded! Commit " + data.commit + "\n" +
+      data.added.join(", ") + "\n\nLive in the catalog in about 2 minutes.",
+      false
+    );
+    picked = [];
+    showGrid();
+  } catch (err) {
+    status("❌ " + err.message, true);
+  } finally {
+    $("go").disabled = false;
+  }
+};
+
+function status(msg, isErr) {
+  $("status").innerHTML = '<span class="' + (isErr ? "err" : "ok") + '">' + msg.replace(/\n/g, "<br>") + "</span>";
+}
+</script>
+</body>
+</html>
