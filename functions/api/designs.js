@@ -6,8 +6,8 @@
 //   GET /api/designs?format=files
 //     -> { files: ["design_id.jpg", ...] }  (compat for old FILES array consumers)
 //
-//   GET /api/designs?format=full
-//     -> { designs: [{ ..., url, midUrl, webpUrl }] }  (with R2 URLs resolved)
+//   GET /api/designs?img=designs/original/{id}.jpg
+//     -> raw image bytes (R2 proxy with caching)
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -28,8 +28,27 @@ export async function onRequestOptions() {
 export async function onRequest({ request, env }) {
   const url = new URL(request.url);
   const format = url.searchParams.get("format") || "default";
+  const imgKey = url.searchParams.get("img");
+  const origin = url.origin;
 
   try {
+    // Image proxy mode: serve raw bytes from R2
+    if (imgKey) {
+      const validPrefix = "designs/";
+      if (!imgKey.startsWith(validPrefix)) {
+        return new Response("Invalid key", { status: 400 });
+      }
+      const object = await env.DESIGNS_BUCKET.get(imgKey);
+      if (!object) return new Response("Not found", { status: 404 });
+
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set("cache-control", "public, max-age=31536000, immutable");
+      headers.set("access-control-allow-origin", "*");
+      return new Response(object.body, { headers });
+    }
+
+    // List mode
     const { results } = await env.CATALOG_DB
       .prepare("SELECT design_id, name, sort_order, created_at, active FROM designs WHERE active = 1 ORDER BY sort_order ASC, created_at ASC")
       .all();
@@ -40,13 +59,12 @@ export async function onRequest({ request, env }) {
     }
 
     if (format === "full") {
-      // Include resolved R2 URLs for each design
-      const origin = url.origin;
+      // Include resolved image URLs for each design
       const designs = results.map((r) => ({
         ...r,
-        url: `${origin}/designs/original/${r.design_id}.jpg`,
-        midUrl: `${origin}/designs/mid/${r.design_id}.webp`,
-        webpUrl: `${origin}/designs/webp/${r.design_id}.webp`,
+        url: `${origin}/api/designs?img=designs/original/${r.design_id}.jpg`,
+        midUrl: `${origin}/api/designs?img=designs/mid/${r.design_id}.webp`,
+        webpUrl: `${origin}/api/designs?img=designs/webp/${r.design_id}.webp`,
       }));
       return json({ designs });
     }

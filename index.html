@@ -883,15 +883,13 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
 
   const ORIGIN = location.origin;
   const IS_FILE = location.protocol === "file:";
-  // Static assets: relative paths for file://, origin-relative everywhere else (dev + prod).
-  const urlFor = (f) => (IS_FILE ? "" : ORIGIN + "/") + encodeURIComponent(f);
-  // Engagement API always hits the deployed backend (works from file:// and local dev).
-  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : ORIGIN) + "/api/catalog";
-  const DESIGNS_API = (IS_FILE ? "https://chandni-catalog.pages.dev" : ORIGIN) + "/api/designs";
-  const WA_NUMBER = "919537097267";
-  const webpUrl = (f) => (IS_FILE ? "webp/" : ORIGIN + "/webp/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
-  const midUrl = (f) => (IS_FILE ? "mid/" : ORIGIN + "/mid/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
+  // Image URLs go through the API proxy (R2 is not public by default)
+  const imgUrl = (key) => (IS_FILE ? key : ORIGIN + "/api/designs?img=" + encodeURIComponent(key));
+  const urlFor = (f) => imgUrl("designs/original/" + encodeURIComponent(f));
+  const webpUrl = (f) => imgUrl("designs/webp/" + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp"));
+  const midUrl = (f) => imgUrl("designs/mid/" + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp"));
   const stem = (f) => f.replace(/\.[^.]+$/, "").toLowerCase();
+  const WA_NUMBER = "919537097267";
 
   // Closing poster card (shown after the last design). Not in FILES.
   const LANDING = "landing.webp";

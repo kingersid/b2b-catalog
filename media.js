@@ -11,6 +11,7 @@ window.CATALOG_FILES = [];
     const data = await resp.json();
     if (data.files && data.files.length > 0) {
       window.CATALOG_FILES = data.files;
+      window.CATALOG_API_BASE = origin + "/api/designs?img=";
       return;
     }
   } catch (e) {

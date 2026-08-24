@@ -31,7 +31,7 @@ export async function onRequest(context) {
     }
 
     const stem = (f) => f.replace(/\.[^.]+$/, "");
-    const midUrl = (f) => origin + "/mid/" + encodeURIComponent(stem(f) + ".webp");
+    const midUrl = (f) => origin + "/api/designs?img=" + encodeURIComponent("designs/mid/" + stem(f) + ".webp");
 
     const imageUrl = file ? midUrl(file) : origin + "/landing.webp";
     const title = file ? `Design #${designNum} — Chandni Silk Mills` : "Chandni Silk Mills";
