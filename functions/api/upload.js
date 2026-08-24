@@ -112,7 +112,8 @@ export async function onRequestPost({ request, env }) {
     const baseSha = (await refResp.json()).object.sha;
 
     const commitResp = await gh(token, `/repos/${REPO}/commits/${baseSha}`);
-    const baseTree = (await commitResp.json()).tree.sha;
+    if (!commitResp.ok) return json({ error: "Cannot read base commit: " + commitResp.status }, 500);
+    const baseTree = (await commitResp.json()).commit.tree.sha;
 
     // 2. Create blobs for the images
     const tree = [];
