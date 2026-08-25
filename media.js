@@ -2,14 +2,19 @@
 // Fetched from D1 API at runtime. Legacy fallback included for local dev.
 
 window.CATALOG_FILES = [];
+window.CATALOG_TOTAL = 0;
+window.CATALOG_LOADED = false;
 
-async function loadCatalogFiles() {
+async function loadCatalogFiles(pageSize = 48) {
   try {
     const origin = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
-    const resp = await fetch(origin + "/api/designs?format=files");
+    const resp = await fetch(`${origin}/api/designs?format=pages&limit=${pageSize}`);
     const data = await resp.json();
-    if (data.files && data.files.length > 0) {
-      window.CATALOG_FILES = data.files.map(f => f.toLowerCase());
+    const designs = data.designs || [];
+    if (designs.length > 0) {
+      window.CATALOG_FILES = designs.map((d) => d.name).filter(Boolean);
+      window.CATALOG_TOTAL = Number(data.total || designs.length);
+      window.CATALOG_LOADED = true;
       return;
     }
   } catch (e) {
@@ -42,6 +47,8 @@ async function loadCatalogFiles() {
     "img_8453.jpg","img_8928.jpg","img_8930.jpg","img_9078.jpg","img_9199.jpg","img_9662.jpg",
     "92eea7d7-a9a1-4852-b52a-ccb9ea6740a8.jpg","824d67c0-68b4-42f7-906b-074c5e8c07cb.jpg"
   ];
+  window.CATALOG_TOTAL = window.CATALOG_FILES.length;
+  window.CATALOG_LOADED = true;
 }
 
 loadCatalogFiles();

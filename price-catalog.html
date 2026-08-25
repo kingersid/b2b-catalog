@@ -453,81 +453,145 @@
   const stem = (f) => f.replace(/\.[^.]+$/, "");
 
   const feed = document.getElementById("feed");
-  const total = FILES.length;
+  let renderedCount = 0;
+  const PAGE_SIZE = 36;
+  let loadingMore = false;
 
-  // ---------- Intro landing slide (landing.png at site root; not in FILES, index -1) ----------
-  const LANDING = "landing.png";
-  const LANDING_LQIP = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA4KCw0LCQ4NDA0QDw4RFiQXFhQUFiwgIRokNC43NjMuMjI6QVNGOj1OPjIySGJJTlZYXV5dOEVmbWVabFNbXVn/2wBDAQ8QEBYTFioXFypZOzI7WVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVn/wAARCAAkABgDASIAAhEBAxEB/8QAGwABAAICAwAAAAAAAAAAAAAAAAQFAwYBAgf/xAAoEAACAQMDAQgDAAAAAAAAAAABAgMABBEFEiFREyMxQWFxgaEUIjL/xAAXAQEBAQEAAAAAAAAAAAAAAAADAgAB/8QAHREBAQACAgMBAAAAAAAAAAAAAQACEQNBEjFRUv/aAAwDAQACEQMRAD8A35eFzjyqG893vGyFgpPGVzx7DwqU28R5QAnoawd9x3S5+aLUm6Vj9eeTSuE3mPMgAboKVksVTo+u2msx4hVkkU8xyjB9cdasQY93AT+vqvK7hViZhB25ushk2Ajb6g5yB6+dbZpOrXcVjEmozW5lPIYOCwHRj4ZqfPRtmy4vzbSZVjUhsKPelUyymc7o5FIPPIz90onlerhgd0OztLeK3eFIUETjDKRnI6HNZG0jT9gP4cXwKUoTJ+1vu7mNIUVYlCKg2qFHgKUpUK1F/9k=";
-  const intro = document.createElement("section");
-  intro.className = "slide intro";
-  intro.dataset.index = "-1";
-  intro.innerHTML =
-    '<div class="media has-img">' +
-      '<img class="ph" src="' + LANDING_LQIP + '" alt="" aria-hidden="true" decoding="async">' +
-      '<img class="full" src="' + urlFor(LANDING) + '" alt="Chandni Silk Mills — Catalog" decoding="async" fetchpriority="high" loading="eager">' +
-    '</div>';
-  feed.appendChild(intro);
-  const introMedia = intro.querySelector(".media");
-  const introFull = introMedia.querySelector("img.full");
-  const introReady = () => { introMedia.classList.add("ready"); introFull.dataset.upgraded = "1"; };
-  if (introFull.complete && introFull.naturalWidth > 0) introReady();
-  else introFull.addEventListener("load", introReady, { once: true });
-
-  FILES.forEach((f, i) => {
-    const slide = document.createElement("section");
-    slide.className = "slide";
-    slide.dataset.index = i;
-    slide.dataset.item = stem(f);
-    const media = document.createElement("div");
-    media.className = "media has-img";
-    media.innerHTML =
-      '<img class="ph" src="' + (LQIP[f] || urlFor(f)) + '" alt="" aria-hidden="true" decoding="async">' +
-      '<img class="full" src="' + midUrl(f) + '" alt="' + f + '"' +
-      (i === 0 ? ' fetchpriority="high" loading="eager"' : ' loading="lazy"') +
-      ' decoding="async">';
-    slide.appendChild(media);
-
-    feed.appendChild(slide);
-
-    const full = media.querySelector("img.full");
-    const markReady = () => { media.classList.add("ready"); upgradeToFull(slide); };
-    const jpgFallback = () => { full.onerror = null; full.src = urlFor(f); };
-    if (full.complete && full.naturalWidth > 0) markReady();
-    else {
-      full.addEventListener("load", markReady, { once: true });
-      full.addEventListener("error", jpgFallback, { once: true }); // webp unsupported -> jpg
-    }
-
-    // Double-tap photo: toggle fit (contain -> cover and back).
-    let lastTap = 0;
-    media.addEventListener("click", (e) => {
-      const now = Date.now();
-      if (now - lastTap < 350) { media.classList.toggle("zoom"); lastTap = 0; }
-      else lastTap = now;
+  function renderInitialSlides() {
+    const files = (window.CATALOG_FILES || []).slice(0, PAGE_SIZE);
+    renderedCount = files.length;
+    FILES.push(...files);
+    total = FILES.length;
+    files.forEach((f, i) => {
+      const slide = document.createElement("section");
+      slide.className = "slide";
+      slide.dataset.index = i;
+      slide.dataset.item = stem(f);
+      const media = document.createElement("div");
+      media.className = "media has-img";
+      media.innerHTML =
+        '<img class="ph" src="' + (LQIP[f] || urlFor(f)) + '" alt="" aria-hidden="true" decoding="async">' +
+        '<img class="full" src="' + midUrl(f) + '" alt="' + f + '" loading="lazy" decoding="async">';
+      slide.appendChild(media);
+      feed.appendChild(slide);
+      const full = media.querySelector("img.full");
+      const markReady = () => { media.classList.add("ready"); };
+      if (full.complete && full.naturalWidth > 0) markReady();
+      else full.addEventListener("load", markReady, { once: true });
     });
-  });
+    setupInfiniteScroll();
+  }
 
-  const slides = Array.from(document.querySelectorAll(".slide"));
-  const slideCount = slides.length;
+  function appendMoreSlides(files, startIndex) {
+    const frag = document.createDocumentFragment();
+    files.forEach((f, i) => {
+      const idx = startIndex + i;
+      const slide = document.createElement("section");
+      slide.className = "slide";
+      slide.dataset.index = idx;
+      slide.dataset.item = stem(f);
+      const media = document.createElement("div");
+      media.className = "media has-img";
+      media.innerHTML =
+        '<img class="ph" src="' + (LQIP[f] || urlFor(f)) + '" alt="" aria-hidden="true" decoding="async">' +
+        '<img class="full" src="' + midUrl(f) + '" alt="' + f + '" loading="lazy" decoding="async">';
+      slide.appendChild(media);
+      frag.appendChild(slide);
+      const full = media.querySelector("img.full");
+      const markReady = () => { media.classList.add("ready"); };
+      if (full.complete && full.naturalWidth > 0) markReady();
+      else full.addEventListener("load", markReady, { once: true });
+    });
+    feed.appendChild(frag);
+    total = FILES.length;
+  }
+
+  async function loadMoreSlides() {
+    if (loadingMore || renderedCount >= (window.CATALOG_FILES || []).length) return;
+    loadingMore = true;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const nextBatch = (window.CATALOG_FILES || []).slice(renderedCount, renderedCount + PAGE_SIZE);
+      const start = renderedCount;
+      appendMoreSlides(nextBatch, start);
+      FILES.push(...nextBatch);
+      renderedCount += nextBatch.length;
+      total = FILES.length;
+    } catch (e) {
+      console.error("load more slides failed:", e);
+    } finally {
+      loadingMore = false;
+    }
+  }
+
+  function setupInfiniteScroll() {
+    const sentinel = document.createElement("div");
+    sentinel.id = "feed-sentinel";
+    sentinel.style.height = "1px";
+    feed.parentNode.insertBefore(sentinel, feed.nextSibling);
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreSlides();
+    }, { rootMargin: "800px" });
+    observer.observe(sentinel);
+  }
+
+  // ---------- Init after media.js loads ----------
+  function initFeed() {
+    if ((window.CATALOG_FILES || []).length === 0) {
+      setTimeout(initFeed, 50);
+      return;
+    }
+    renderInitialSlides();
+    updateCounter();
+    refreshCta();
+  }
+
+  setTimeout(initFeed, 0);
+
+  // ---------- Slide interaction layer (works with dynamically added slides) ----------
+  function buildIntroSlide() {
+    const intro = document.createElement("section");
+    intro.className = "slide intro";
+    intro.dataset.index = "-1";
+    intro.innerHTML =
+      '<div class="media has-img">' +
+        '<img class="ph" src="' + LANDING_LQIP + '" alt="" aria-hidden="true" decoding="async">' +
+        '<img class="full" src="' + urlFor(LANDING) + '" alt="Chandni Silk Mills — Catalog" decoding="async" fetchpriority="high" loading="eager">' +
+      '</div>';
+    feed.insertBefore(intro, feed.firstChild);
+    const introMedia = intro.querySelector(".media");
+    const introFull = introMedia.querySelector("img.full");
+    const introReady = () => { introMedia.classList.add("ready"); introFull.dataset.upgraded = "1"; };
+    if (introFull.complete && introFull.naturalWidth > 0) introReady();
+    else introFull.addEventListener("load", introReady, { once: true });
+    return intro;
+  }
+  buildIntroSlide();
+
   const counter = document.getElementById("counter");
   const thumb = document.getElementById("thumb");
   const hint = document.getElementById("hint");
   const caption = document.getElementById("caption");
   const toast = document.getElementById("toast");
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
-  const gotoSlide = (i) => window.scrollTo({ top: slides[i].offsetTop, behavior: "smooth" });
+  const gotoSlide = (i) => {
+    const allSlides = Array.from(document.querySelectorAll(".slide"));
+    const target = allSlides[i];
+    if (target) window.scrollTo({ top: target.offsetTop, behavior: "smooth" });
+  };
 
   let active = 0;
-  const preloaded = new Map(); // filename -> Image (kept alive so the preload completes)
+  const preloaded = new Map();
   const preloadNear = (idx) => {
+    const allSlides = Array.from(document.querySelectorAll(".slide"));
     for (const j of [idx - 1, idx, idx + 1]) {
-      if (j < 1 || j > total) continue; // j is a DOM index; media slide j shows FILES[j-1]
-      const f = FILES[j - 1];
-      if (!preloaded.has(f)) {
-        const im = new Image();
-        im.src = midUrl(f);
-        preloaded.set(f, im);
-      }
+      if (j < 1 || j >= allSlides.length) continue;
+      const slide = allSlides[j];
+      const f = slide.dataset.item;
+      if (!f || preloaded.has(f)) continue;
+      const im = new Image();
+      im.src = midUrl(f + ".webp");
+      preloaded.set(f, im);
     }
   };
 
@@ -538,47 +602,74 @@
     showToast._t = setTimeout(() => toast.classList.remove("show"), 2000);
   }
 
-  // Upgrade the active slide's mid-res image to full-res in the background.
   function upgradeToFull(slide) {
     const img = slide.querySelector("img.full");
     if (!img || img.dataset.upgraded) return;
-    if (+slide.dataset.index === -1) return; // landing.png is already full-res at root
-    const fname = FILES[+slide.dataset.index];
-    const fullUrl = webpUrl(fname);
+    if (+slide.dataset.index === -1) return;
+    const fname = slide.dataset.item;
+    const fullUrl = webpUrl(fname + ".webp");
     if (img.getAttribute("src") === fullUrl) { img.dataset.upgraded = "1"; return; }
     const up = new Image();
     up.onload = () => { if (img.getAttribute("src") !== fullUrl) img.src = fullUrl; img.dataset.upgraded = "1"; };
     up.onerror = () => { img.dataset.upgraded = "1"; };
     up.src = fullUrl;
-  };
+  }
+
+  function refreshCta() {
+    const waCta = document.getElementById("wa-cta");
+    if (!waCta) return;
+    let item = "";
+    const allSlides = Array.from(document.querySelectorAll(".slide"));
+    if (active > 0 && active < allSlides.length) item = allSlides[active].dataset.item || "";
+    const p = item ? prices[stem(item + ".webp")] : undefined;
+    const priceTxt = p != null ? " (₹" + Number(p).toLocaleString("en-IN") + ")" : "";
+    const shareLink = item ? (ORIGIN + "/share?item=" + encodeURIComponent(item)) : "";
+    const msg = encodeURIComponent(
+      "Hi Chandni Silk Mills! 👋 I saw design " + (item || "in your catalog") + priceTxt +
+      " and I'd like to book a video call to discuss it." + (shareLink ? "\n\n" + shareLink : "")
+    );
+    waCta.href = "https://wa.me/" + WA_NUMBER + "?text=" + msg;
+  }
 
   function update() {
-    counter.textContent = active === 0 ? total + " items" : active + " / " + total;
+    const allSlides = Array.from(document.querySelectorAll(".slide"));
+    const slideCount = allSlides.length;
+    counter.textContent = active === 0 ? total + " items" : active + " / " + (total > 0 ? total - 1 : 0);
     const pct = slideCount > 1 ? (active / (slideCount - 1)) * 100 : 0;
     const h = 100 / slideCount;
     thumb.style.top = (pct * (100 - h) / 100) + "%";
     thumb.style.height = h + "%";
-    hint.classList.add("faded"); // landing slide is self-contained; hide the generic scroll hint
+    hint.classList.add("faded");
     caption.innerHTML = active === 0 ? "" : "Tap to copy link";
     preloadNear(active);
-    upgradeToFull(slides[active]);
+    upgradeToFull(allSlides[active]);
     refreshCta();
   }
 
-  // Active slide tracking (one slide per viewport thanks to snap).
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (e.isIntersecting) {
-        const idx = slides.indexOf(e.target);
-        if (idx !== active) { active = idx; update(); }
+        const allSlides = Array.from(document.querySelectorAll(".slide"));
+        const idx = allSlides.indexOf(e.target);
+        if (idx !== active && idx >= 0) { active = idx; update(); }
       }
     }
   }, { threshold: 0.5 });
-  slides.forEach((s) => io.observe(s));
+  document.querySelectorAll(".slide").forEach((s) => io.observe(s));
 
-  // ---------- Endless loop: keep swiping past the end and it wraps around ----------
+  // Rebind observer after slides are added
+  const origAppendMore = appendMoreSlides;
+  appendMoreSlides = function(files, startIndex) {
+    origAppendMore(files, startIndex);
+    setTimeout(() => {
+      document.querySelectorAll(".slide").forEach((s) => io.observe(s));
+      update();
+    }, 0);
+  };
+
+  // ---------- Endless loop ----------
   let lastWrap = 0;
-  function wrap(dir) { // 'up' -> back to the top, 'down' -> jump to the bottom
+  function wrap(dir) {
     const now = Date.now();
     if (now - lastWrap < 800) return;
     lastWrap = now;
@@ -594,9 +685,6 @@
   document.addEventListener("touchend", (e) => {
     if (touchStartY === null) return;
     const dy = e.changedTouches[0].clientY - touchStartY;
-    // Boundary is judged from where the gesture *started*: robust even when iOS
-    // rubber-band bounce makes the ending position drift. ~60px tolerance covers
-    // small scroll-snap alignment offsets after a fling.
     if (dy > 50 && touchStartTop <= 60) wrap("down");
     else if (dy < -50 && touchStartTop >= maxScroll() - 60) wrap("up");
     touchStartY = null;
@@ -609,7 +697,6 @@
   }, { passive: false });
 
   window.addEventListener("keydown", (e) => {
-    // Don't hijack keys when a control has focus (avoids double navigation).
     if (e.target && e.target.closest && e.target.closest("button, a, input, textarea")) return;
     const top = window.scrollY;
     if ((e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") && top >= maxScroll() - 2) {
@@ -623,24 +710,18 @@
     active > 0 ? gotoSlide(active - 1) : wrap("down");
   });
   document.getElementById("btn-down").addEventListener("click", () => {
-    active < slideCount - 1 ? gotoSlide(active + 1) : wrap("up");
+    const allSlides = Array.from(document.querySelectorAll(".slide"));
+    active < allSlides.length - 1 ? gotoSlide(active + 1) : wrap("up");
   });
 
-  // Tap caption to copy the item's link (for sharing / Meta catalog).
   caption.addEventListener("click", async () => {
     if (active === 0) { showToast("Welcome to Chandni Silk Mills"); return; }
     try {
-      await navigator.clipboard.writeText(urlFor(FILES[active - 1]));
+      const allSlides = Array.from(document.querySelectorAll(".slide"));
+      const item = allSlides[active]?.dataset.item || "";
+      await navigator.clipboard.writeText(urlFor(item));
       showToast("Link copied");
     } catch (e) {
-      const ta = document.createElement("textarea");
-      ta.value = urlFor(FILES[active]);
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
       showToast("Link copied");
     }
   });
@@ -650,18 +731,16 @@
   // ============================================================
   // Prices: ₹ price per design, loaded from the price API
   // ============================================================
-
-  // ---------- Prices (per design, from /api/prices) ----------
-  const prices = {}; // itemId -> price in ₹
+  const prices = {};
   async function loadPrices() {
     try {
       const r = await fetch(API);
       const d = await r.json();
       Object.assign(prices, d.prices || {});
-      slides.forEach((s) => {
+      document.querySelectorAll(".slide").forEach((s) => {
         const item = s.dataset.item;
         if (!item || s.querySelector(".price-pill")) return;
-        const p = prices[item];
+        const p = prices[stem(item)];
         const pill = document.createElement("span");
         pill.className = "price-pill" + (p == null ? " empty" : "");
         pill.innerHTML = p != null
@@ -672,22 +751,6 @@
     } catch (e) { /* keep slides clean if the API is unavailable */ }
   }
   loadPrices();
-
-  // ---------- WhatsApp video-call CTA (pre-filled with the current item + price) ----------
-  function refreshCta() {
-    const waCta = document.getElementById("wa-cta");
-    if (!waCta) return;
-    let item = "";
-    if (active > 0 && FILES[active - 1]) item = FILES[active - 1];
-    const p = item ? prices[stem(item)] : undefined;
-    const priceTxt = p != null ? " (₹" + Number(p).toLocaleString("en-IN") + ")" : "";
-    const shareLink = item ? (ORIGIN + "/share?index=" + (active - 1)) : "";
-    const msg = encodeURIComponent(
-      "Hi Chandni Silk Mills! 👋 I saw design " + (item || "in your catalog") + priceTxt +
-      " and I'd like to book a video call to discuss it." + (shareLink ? "\n\n" + shareLink : "")
-    );
-    waCta.href = "https://wa.me/" + WA_NUMBER + "?text=" + msg;
-  }
 
   refreshCta();
 </script>

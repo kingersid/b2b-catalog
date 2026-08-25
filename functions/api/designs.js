@@ -60,13 +60,36 @@ export async function onRequest({ request, env }) {
 
     if (format === "full") {
       // Include resolved image URLs for each design
-      const designs = results.map((r) => ({
+      const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+      const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || results.length), 100));
+      const offset = (page - 1) * limit;
+      const total = results.length;
+      const pageItems = results.slice(offset, offset + limit);
+      const designs = pageItems.map((r) => ({
         ...r,
         url: `${origin}/api/designs?img=designs/original/${r.design_id}.jpg`,
         midUrl: `${origin}/api/designs?img=designs/mid/${r.design_id}.webp`,
         webpUrl: `${origin}/api/designs?img=designs/webp/${r.design_id}.webp`,
       }));
-      return json({ designs });
+      return json({ designs, page, limit, total, totalPages: Math.ceil(total / limit) });
+    }
+
+    if (format === "pages") {
+      // Paginated list with metadata — optimized for lazy-load feeds
+      const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+      const limit = Math.max(1, Math.min(Number(url.searchParams.get("limit") || 36), 100));
+      const offset = (page - 1) * limit;
+      const total = results.length;
+      const pageItems = results.slice(offset, offset + limit);
+      const designs = pageItems.map((r) => ({
+        design_id: r.design_id,
+        name: r.name,
+        sort_order: r.sort_order,
+        url: `${origin}/api/designs?img=designs/original/${r.design_id}.jpg`,
+        midUrl: `${origin}/api/designs?img=designs/mid/${r.design_id}.webp`,
+        webpUrl: `${origin}/api/designs?img=designs/webp/${r.design_id}.webp`,
+      }));
+      return json({ designs, page, limit, total, totalPages: Math.ceil(total / limit) });
     }
 
     return json({ designs: results });

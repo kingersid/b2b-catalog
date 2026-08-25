@@ -840,21 +840,125 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   let TOTAL = 0;
   let POSTER_INDEX = 0;
   let designsLoaded = false;
+  let renderedCount = 0;
+  const PAGE_SIZE = 36;
+  let allFiles = []; // full catalog from API
+  let loadingMore = false;
 
   async function loadDesigns() {
     try {
       const origin = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
-      const resp = await fetch(origin + "/api/designs?format=files");
+      const resp = await fetch(`${origin}/api/designs?format=pages&limit=500`);
       const data = await resp.json();
-      if (data.files && data.files.length > 0) {
-        FILES = data.files.map(f => f.toLowerCase()); // R2 keys are lowercase
-        designsLoaded = true;
-        return true;
-      }
+      const designs = data.designs || [];
+      allFiles = designs.map((d) => d.name).filter(Boolean);
+      FILES = allFiles.slice();
+      TOTAL = Number(data.total || allFiles.length);
+      POSTER_INDEX = TOTAL;
+      renderedCount = Math.min(PAGE_SIZE, TOTAL);
+      designsLoaded = true;
+      return true;
     } catch (e) {
-      console.warn('Failed to load designs from API:', e);
+      console.error("designs load failed:", e);
+      return false;
     }
-    return false;
+  }
+
+  async function loadMoreDesigns() {
+    if (loadingMore || renderedCount >= TOTAL) return;
+    loadingMore = true;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const nextCount = Math.min(renderedCount + PAGE_SIZE, TOTAL);
+      appendGridCells(renderedCount, nextCount);
+      renderedCount = nextCount;
+    } catch (e) {
+      console.error("load more failed:", e);
+    } finally {
+      loadingMore = false;
+    }
+  }
+
+  function appendGridCells(fromIndex, toIndex) {
+    const frag = document.createDocumentFragment();
+    for (let i = fromIndex; i < toIndex; i++) {
+      const f = FILES[i];
+      const cell = document.createElement("button");
+      cell.className = "cell";
+      cell.dataset.item = stem(f);
+      cell.setAttribute("aria-label", `Open design ${i + 1}`);
+      cell.innerHTML =
+        '<span class="loading">…</span>' +
+        '<img alt="Design ' + (i + 1) + '" src="' + midUrl(f) + '" loading="lazy" decoding="async">' +
+        '<span class="num">#' + (i + 1) + "</span>" +
+        '<span class="heart-badge"></span>' +
+        '<span class="trend" title="Trending — one of the most liked designs">🔥</span>';
+      cell.querySelector("img").addEventListener("load", () => cell.classList.add("loaded"), { once: true });
+      cell.addEventListener("click", () => openDetail(i));
+      frag.appendChild(cell);
+    }
+    grid.appendChild(frag);
+    gridCells = Array.from(grid.querySelectorAll(".cell"));
+    rebuildFileIndex();
+    refreshHeartsForNewCells(fromIndex, toIndex);
+  }
+
+  function rebuildFileIndex() {
+    fileIndexByStem = {};
+    FILES.forEach((f, i) => { fileIndexByStem[stem(f)] = i; });
+  }
+
+  function refreshHeartsForNewCells(fromIndex, toIndex) {
+    const hearts = window.__csmHearts || {};
+    for (let i = fromIndex; i < toIndex && i < gridCells.length; i++) {
+      const c = gridCells[i];
+      const item = c.dataset.item;
+      if (!item) continue;
+      const n = hearts[item] ?? 0;
+      const badge = c.querySelector(".heart-badge");
+      const btn = c.querySelector(".heart");
+      if (btn) btn.querySelector(".n").textContent = n;
+      if (n > 0 && badge) { badge.textContent = "♥ " + n; c.classList.add("show-heart"); }
+    }
+  }
+
+  function setupInfiniteScroll() {
+    const sentinel = document.createElement("div");
+    sentinel.id = "grid-sentinel";
+    sentinel.style.height = "1px";
+    grid.parentNode.insertBefore(sentinel, grid.nextSibling);
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreDesigns();
+    }, { rootMargin: "600px" });
+    observer.observe(sentinel);
+  }
+
+  // ============================================================
+  // BOOT: load designs from D1 API, then build all UI
+  // ============================================================
+  function initGrid() {
+    grid.innerHTML = "";
+    document.getElementById("grid-count").textContent = TOTAL;
+    document.getElementById("cta-count").textContent = TOTAL;
+    for (let i = 0; i < renderedCount; i++) {
+      const f = FILES[i];
+      const cell = document.createElement("button");
+      cell.className = "cell";
+      cell.dataset.item = stem(f);
+      cell.setAttribute("aria-label", `Open design ${i + 1}`);
+      cell.innerHTML =
+        '<span class="loading">…</span>' +
+        '<img alt="Design ' + (i + 1) + '" src="' + midUrl(f) + '" loading="lazy" decoding="async">' +
+        '<span class="num">#' + (i + 1) + "</span>" +
+        '<span class="heart-badge"></span>' +
+        '<span class="trend" title="Trending — one of the most liked designs">🔥</span>';
+      cell.querySelector("img").addEventListener("load", () => cell.classList.add("loaded"), { once: true });
+      cell.addEventListener("click", () => openDetail(i));
+      grid.appendChild(cell);
+    }
+    gridCells = Array.from(grid.querySelectorAll(".cell"));
+    rebuildFileIndex();
+    setupInfiniteScroll();
   }
 
   const ORIGIN = location.origin;
