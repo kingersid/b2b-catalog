@@ -202,22 +202,23 @@
 
 <script src="media.js"></script>
 <script>
-  const FILES = window.CATALOG_FILES;
+  const API = (location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
   const IS_FILE = location.protocol === "file:";
-  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
+
+  const imgUrl = (key) => (IS_FILE ? key : location.origin + "/api/designs?img=" + encodeURIComponent(key));
+  const thumbUrl = (f) => imgUrl("designs/mid/" + encodeURIComponent(f.toLowerCase()));
   const stem = (f) => f.replace(/\.[^.]+$/, "");
-  const thumbUrl = (f) =>
-    (IS_FILE ? "mid/" : location.origin + "/mid/") + encodeURIComponent(stem(f) + ".webp");
 
   const grid = document.getElementById("grid");
   const statTotal = document.getElementById("stat-total");
   const statDone = document.getElementById("stat-done");
-  const prices = {}; // itemId -> price (₹)
+  const prices = {};
 
   function render() {
     grid.innerHTML = "";
     let done = 0;
-    FILES.forEach((f, i) => {
+    const files = window.CATALOG_FILES || [];
+    files.forEach((f, i) => {
       const item = stem(f);
       const p = prices[item];
       if (p != null) done++;
@@ -278,18 +279,24 @@
   }
 
   function updateStats() {
-    statTotal.textContent = FILES.length;
+    statTotal.textContent = (window.CATALOG_FILES || []).length;
     statDone.textContent = Object.keys(prices).length;
   }
 
-  (async function init() {
+  async function init() {
     try {
       const r = await fetch(API);
       const d = await r.json();
       Object.assign(prices, d.prices || {});
     } catch (e) { /* prices will just be empty */ }
     render();
-  })();
+  }
+
+  if (window.CATALOG_LOADED) {
+    init();
+  } else {
+    window.addEventListener("catalog-ready", init, { once: true });
+  }
 </script>
 </body>
 </html>

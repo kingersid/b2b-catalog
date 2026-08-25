@@ -5,6 +5,10 @@ window.CATALOG_FILES = [];
 window.CATALOG_TOTAL = 0;
 window.CATALOG_LOADED = false;
 
+function dispatchCatalogReady() {
+  window.dispatchEvent(new Event('catalog-ready'));
+}
+
 async function loadCatalogFiles(pageSize = 48) {
   try {
     const origin = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
@@ -15,6 +19,7 @@ async function loadCatalogFiles(pageSize = 48) {
       window.CATALOG_FILES = designs.map((d) => d.name).filter(Boolean);
       window.CATALOG_TOTAL = Number(data.total || designs.length);
       window.CATALOG_LOADED = true;
+      dispatchCatalogReady();
       return;
     }
   } catch (e) {
@@ -49,6 +54,7 @@ async function loadCatalogFiles(pageSize = 48) {
   ];
   window.CATALOG_TOTAL = window.CATALOG_FILES.length;
   window.CATALOG_LOADED = true;
+  dispatchCatalogReady();
 }
 
 loadCatalogFiles();
