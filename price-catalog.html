@@ -493,16 +493,12 @@
     // Full image: mid-size webp for quality + speed
     const fullImg = document.createElement("img");
     fullImg.className = "full";
+    fullImg.src = design.midUrl || design.url;
     fullImg.alt = design.name;
     fullImg.decoding = "async";
-    // Lazy-load off-screen images; first 3 are eager for instant first paint
-    if (index < 3) {
-      fullImg.src = design.midUrl || design.url;
-      if (index === 0) fullImg.setAttribute("fetchpriority", "high");
-    } else {
-      fullImg.setAttribute("loading", "lazy");
-      fullImg.dataset.src = design.midUrl || design.url;
-    }
+    // First image loads with highest priority; rest use browser lazy-load
+    if (index === 0) fullImg.setAttribute("fetchpriority", "high");
+    else fullImg.setAttribute("loading", "lazy");
 
     // Reveal full image once loaded (replaces blurred placeholder)
     const markReady = () => {
@@ -610,18 +606,17 @@
 
   // --- Preload adjacent slides ---    const preloaded = new Set();
   function preloadNear(idx) {
-    // Preload 2 ahead + 1 behind for smooth scrolling
+    // Preload 3 ahead + 1 behind by forcing decode — images already have src
+    // set via loading=lazy, so this just ensures they're decoded before scroll.
     for (const j of [idx - 1, idx + 1, idx + 2, idx + 3]) {
       if (j < 0 || j >= designs.length || preloaded.has(j)) continue;
       preloaded.add(j);
       const slide = slideEls[j];
       if (!slide) continue;
-      // If the full image hasn't started loading yet, kick it off now
       const fullImg = slide.querySelector("img.full");
-      if (fullImg && !fullImg.src && fullImg.dataset.src) {
-        fullImg.src = fullImg.dataset.src;
-        delete fullImg.dataset.src;
-      }
+      if (fullImg && fullImg.complete) continue;
+      // Nudge browser to start loading by touching the resource
+      if (fullImg && !fullImg.src) fullImg.src = designs[j].midUrl || designs[j].url;
     }
   }
 
