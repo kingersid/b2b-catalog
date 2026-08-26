@@ -479,7 +479,7 @@
     const media = document.createElement("div");
     media.className = "media";
 
-    // Placeholder: use the original URL (small), blur via CSS
+    // Placeholder: blurred low-res, shown immediately via CSS filter
     const phImg = document.createElement("img");
     phImg.className = "ph";
     phImg.src = design.url;
@@ -487,17 +487,29 @@
     phImg.setAttribute("aria-hidden", "true");
     phImg.decoding = "async";
 
-    // Full image: use mid-size for faster loading
+    // Full image: mid-size webp for quality + speed
     const fullImg = document.createElement("img");
     fullImg.className = "full";
     fullImg.src = design.midUrl || design.url;
     fullImg.alt = design.name;
-    fullImg.loading = "lazy";
     fullImg.decoding = "async";
 
-    const markReady = () => media.classList.add("ready");
-    if (fullImg.complete && fullImg.naturalWidth > 0) markReady();
-    else fullImg.addEventListener("load", markReady, { once: true });
+    // Reveal full image once loaded (replaces blurred placeholder)
+    const markReady = () => {
+      if (!media.classList.contains("ready")) media.classList.add("ready");
+    };
+    if (fullImg.complete && fullImg.naturalWidth > 0) {
+      markReady();
+    } else {
+      fullImg.addEventListener("load", markReady, { once: true });
+      fullImg.addEventListener("error", () => {
+        // If mid-size fails, fall back to original URL
+        if (fullImg.src !== design.url) fullImg.src = design.url;
+        else markReady(); // show whatever loaded
+      }, { once: true });
+      // Safety net: force reveal after 4s even if load event never fires
+      setTimeout(markReady, 4000);
+    }
 
     media.appendChild(phImg);
     media.appendChild(fullImg);
