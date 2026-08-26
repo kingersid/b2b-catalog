@@ -94,6 +94,7 @@ npm run deploy   # runs portrait check + wrangler pages deploy
 | `scripts/upload-r2.mjs` | Bulk upload images to R2 via wrangler CLI |
 | `scripts/seed-designs.sh` | Seed existing images into R2 + D1 |
 | `scripts/add-from-gphotos.mjs` | Import images from Google Photos share links |
+| `scripts/report.sh` | Generate instant analytics report from live D1 data |
 
 ## D1 Database
 
@@ -327,3 +328,21 @@ npx wrangler pages dev . --port 8788
 - Seed local D1: `npx wrangler d1 execute chandni-catalog --local --file=schema.sql`
 - Use production data: add `--remote` flag
 - Phone preview: `npx wrangler pages dev . --remote --ip 0.0.0.0`
+
+## Dashboard Report
+
+When the user says **"generate dashboard report"** (or similar), run:
+
+```bash
+bash scripts/report.sh
+```
+
+This queries live production D1 data and prints a formatted day-wise analytics report with:
+- Catalog overview (designs, prices)
+- Daily visit counts with bar chart
+- Traffic source breakdown
+- WhatsApp CTA clicks
+- Hearts/likes
+- Scroll depth / reach funnel
+- Top designs by engagement
+- Recommendations
