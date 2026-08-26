@@ -383,7 +383,9 @@
 
 <script src="media.js"></script>
 <script>
-  // Catalog media list now lives in media.js (shared with admin.html).
+(async () => {
+  // Designs load asynchronously — wait for media.js to populate the list.
+  await window.catalogReady;
   const FILES = window.CATALOG_FILES;
 
   // Tiny blurred placeholders (base64 data URIs) painted instantly, faded out on full load.
@@ -753,6 +755,7 @@
   loadPrices();
 
   refreshCta();
+})();
 </script>
 </body>
 </html>

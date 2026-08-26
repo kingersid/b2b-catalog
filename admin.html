@@ -202,9 +202,8 @@
 
 <script src="media.js"></script>
 <script>
-  const API = (location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
   const IS_FILE = location.protocol === "file:";
-
+  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
   const imgUrl = (key) => (IS_FILE ? key : location.origin + "/api/designs?img=" + encodeURIComponent(key));
   const thumbUrl = (f) => imgUrl("designs/mid/" + encodeURIComponent(f.toLowerCase()));
   const stem = (f) => f.replace(/\.[^.]+$/, "");
@@ -284,6 +283,8 @@
   }
 
   async function init() {
+    // Wait for the design list from /api/designs before rendering the grid.
+    await window.catalogReady;
     try {
       const r = await fetch(API);
       const d = await r.json();

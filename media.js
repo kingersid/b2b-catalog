@@ -57,4 +57,6 @@ async function loadCatalogFiles(pageSize = 48) {
   dispatchCatalogReady();
 }
 
-loadCatalogFiles();
+// Kick off the load once and share the promise, so every page can
+// `await window.catalogReady` before reading window.CATALOG_FILES.
+window.catalogReady = loadCatalogFiles();
