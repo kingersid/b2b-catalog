@@ -565,9 +565,9 @@
       return;
     }
     renderInitialSlides();
-    updateCounter();
     loadPrices();
     refreshCta();
+    counter.textContent = (window.CATALOG_FILES || []).length + " items";
   }
 
   setTimeout(initFeed, 0);
