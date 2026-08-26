@@ -203,15 +203,29 @@
 <script src="media.js"></script>
 <script>
   const IS_FILE = location.protocol === "file:";
-  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin) + "/prices";
-  const imgUrl = (key) => (IS_FILE ? key : location.origin + "/api/designs?img=" + encodeURIComponent(key));
-  const thumbUrl = (f) => imgUrl("designs/mid/" + encodeURIComponent(f.toLowerCase()));
+  const ORIGIN = IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin;
+  const API = ORIGIN + "/prices";
   const stem = (f) => f.replace(/\.[^.]+$/, "");
 
   const grid = document.getElementById("grid");
   const statTotal = document.getElementById("stat-total");
   const statDone = document.getElementById("stat-done");
   const prices = {};
+  // design_id/url data isn't in window.CATALOG_FILES (that's names only) —
+  // fetch it directly so thumbnails point at a URL that actually exists.
+  const thumbById = {}; // stem(name) -> real image url
+  async function loadThumbUrls() {
+    let page = 1, total = Infinity, all = [];
+    do {
+      const r = await fetch(`${ORIGIN}/api/designs?format=pages&limit=100&page=${page}`);
+      const d = await r.json();
+      all = all.concat(d.designs || []);
+      total = Number(d.total || all.length);
+      page++;
+    } while (all.length < total && page < 20);
+    all.forEach((d) => { if (d.name) thumbById[stem(d.name)] = d.url; });
+  }
+  const thumbUrl = (f) => thumbById[stem(f)] || "";
 
   function render() {
     grid.innerHTML = "";
@@ -286,10 +300,10 @@
     // Wait for the design list from /api/designs before rendering the grid.
     await window.catalogReady;
     try {
-      const r = await fetch(API);
-      const d = await r.json();
+      const [priceResp] = await Promise.all([fetch(API), loadThumbUrls()]);
+      const d = await priceResp.json();
       Object.assign(prices, d.prices || {});
-    } catch (e) { /* prices will just be empty */ }
+    } catch (e) { /* prices/thumbs will just be empty */ }
     render();
   }
 

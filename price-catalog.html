@@ -387,6 +387,9 @@
   // Designs load asynchronously — wait for media.js to populate the list.
   await window.catalogReady;
   const FILES = window.CATALOG_FILES;
+  // Image URLs are keyed by design_id, not name — fetch that mapping too before
+  // anything tries to render a src= from it (see loadImageUrls() below).
+  await loadImageUrls();
 
   // Tiny blurred placeholders (base64 data URIs) painted instantly, faded out on full load.
   const LQIP = {
@@ -443,16 +446,36 @@
     "IMG_9662.JPG": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA4KCw0LCQ4NDA0QDw4RFiQXFhQUFiwgIRokNC43NjMuMjI6QVNGOj1OPjIySGJJTlZYXV5dOEVmbWVabFNbXVn/2wBDAQ8QEBYTFioXFypZOzI7WVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVn/wAARCAAgABgDASIAAhEBAxEB/8QAGQAAAwEBAQAAAAAAAAAAAAAAAAQFBgID/8QAJhAAAgEEAAUEAwAAAAAAAAAAAQIDAAQRIQUSEzEyFCNRobHB0f/EABYBAQEBAAAAAAAAAAAAAAAAAAMEAf/EABoRAAIDAQEAAAAAAAAAAAAAAAECAAMREyH/2gAMAwEAAhEDEQA/AJc/qonUsgKAZypJCj4+a49bnYRyPLZ/P9FeLPNpZwyJrmLIdCri8P4VMA6IpQjRVtYqa+1as8iopfSYjw+7n6yNBAx5WJ6gPjrsaKXmlitLuaC3KciPoBvqikVtAIlArQgbNFcXVxdWUsTw+aEHL5xqsmsLMmehjI7EAZ+6rCG4sybYyzsF1zc3ekzFMjEAMBnXt7pXQqNgJZUxzCJOgWNYVV1GR3DL+6KeiE6AqWbIzsqM0VnNjB2f/9k="
   };
 
-  const ORIGIN = location.origin;
+  const ORIGIN = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
   const IS_FILE = location.protocol === "file:";
-  // Static assets: relative paths for file://, origin-relative everywhere else (dev + prod).
-  const urlFor = (f) => (IS_FILE ? "" : ORIGIN + "/") + encodeURIComponent(f);
+  // Images now live in R2, keyed by design_id — NOT by name. window.CATALOG_FILES
+  // only has names, so fetch the id->url mapping directly, same fix as admin.html.
+  // (Legacy pre-R2 designs happen to have name === design_id, which is why this
+  // "worked" before for old designs but silently 404'd for every new upload.)
+  const imgByItem = {}; // stem(name) -> real R2-backed url
+  async function loadImageUrls() {
+    let page = 1, total = Infinity, all = [];
+    do {
+      const r = await fetch(`${ORIGIN}/api/designs?format=pages&limit=100&page=${page}`);
+      const d = await r.json();
+      all = all.concat(d.designs || []);
+      total = Number(d.total || all.length);
+      page++;
+    } while (all.length < total && page < 20);
+    all.forEach((d) => { if (d.name) imgByItem[stem(d.name)] = d.url; });
+  }
   // Engagement API always hits the deployed backend (works from file:// and local dev).
-  const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : ORIGIN) + "/prices";
+  const API = ORIGIN + "/prices";
   const WA_NUMBER = "919537097267";
-  const webpUrl = (f) => (IS_FILE ? "webp/" : ORIGIN + "/webp/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
-  const midUrl = (f) => (IS_FILE ? "mid/" : ORIGIN + "/mid/") + encodeURIComponent(f.replace(/\.[^.]+$/, "") + ".webp");
+  // mid/webp derived sizes aren't generated yet — everything falls back to original.
+  const urlFor = (f) => imgByItem[stem(f)] || "";
+  const webpUrl = (f) => imgByItem[stem(f)] || "";
+  const midUrl = (f) => imgByItem[stem(f)] || "";
   const stem = (f) => f.replace(/\.[^.]+$/, "");
+  // The closing poster isn't a design row — it's a fixed R2 object, same convention as index.html.
+  const LANDING = "landing.webp";
+  const landingUrl = ORIGIN + "/api/designs?img=" + encodeURIComponent("designs/original/" + LANDING);
+  const LANDING_LQIP = landingUrl; // no separate blurred placeholder generated for this one yet
 
   const feed = document.getElementById("feed");
   let renderedCount = 0;
@@ -559,7 +582,7 @@
     intro.innerHTML =
       '<div class="media has-img">' +
         '<img class="ph" src="' + LANDING_LQIP + '" alt="" aria-hidden="true" decoding="async">' +
-        '<img class="full" src="' + urlFor(LANDING) + '" alt="Chandni Silk Mills — Catalog" decoding="async" fetchpriority="high" loading="eager">' +
+        '<img class="full" src="' + landingUrl + '" alt="Chandni Silk Mills — Catalog" decoding="async" fetchpriority="high" loading="eager">' +
       '</div>';
     feed.insertBefore(intro, feed.firstChild);
     const introMedia = intro.querySelector(".media");
