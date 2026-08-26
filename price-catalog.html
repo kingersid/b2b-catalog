@@ -40,6 +40,8 @@
     scroll-snap-stop: always;
     display: grid;
     place-items: center;
+    content-visibility: auto;
+    contain-intrinsic-size: 0 100dvh;
     background:
       radial-gradient(140% 90% at 85% -10%, rgba(52, 211, 153, 0.07), transparent 55%),
       radial-gradient(120% 80% at 0% 110%, rgba(245, 196, 81, 0.05), transparent 50%),
@@ -411,7 +413,8 @@
 (async () => {
   const ORIGIN = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
   const WA_NUMBER = "919537097267";
-  const PAGE_SIZE = 36;
+  const PAGE_SIZE = 36;      // API page size (fetch in bulk)
+  const INITIAL_BATCH = 12;  // render fewer slides on first paint for speed
 
   // --- DOM refs ---
   const $feed     = document.getElementById("feed");
@@ -490,9 +493,16 @@
     // Full image: mid-size webp for quality + speed
     const fullImg = document.createElement("img");
     fullImg.className = "full";
-    fullImg.src = design.midUrl || design.url;
     fullImg.alt = design.name;
     fullImg.decoding = "async";
+    // Lazy-load off-screen images; first 3 are eager for instant first paint
+    if (index < 3) {
+      fullImg.src = design.midUrl || design.url;
+      if (index === 0) fullImg.setAttribute("fetchpriority", "high");
+    } else {
+      fullImg.setAttribute("loading", "lazy");
+      fullImg.dataset.src = design.midUrl || design.url;
+    }
 
     // Reveal full image once loaded (replaces blurred placeholder)
     const markReady = () => {
@@ -598,14 +608,20 @@
     preloadNear(activeIdx);
   }
 
-  // --- Preload adjacent slides ---
-  const preloaded = new Set();
+  // --- Preload adjacent slides ---    const preloaded = new Set();
   function preloadNear(idx) {
-    for (const j of [idx - 1, idx + 1]) {
+    // Preload 2 ahead + 1 behind for smooth scrolling
+    for (const j of [idx - 1, idx + 1, idx + 2, idx + 3]) {
       if (j < 0 || j >= designs.length || preloaded.has(j)) continue;
       preloaded.add(j);
-      const im = new Image();
-      im.src = designs[j].midUrl || designs[j].url;
+      const slide = slideEls[j];
+      if (!slide) continue;
+      // If the full image hasn't started loading yet, kick it off now
+      const fullImg = slide.querySelector("img.full");
+      if (fullImg && !fullImg.src && fullImg.dataset.src) {
+        fullImg.src = fullImg.dataset.src;
+        delete fullImg.dataset.src;
+      }
     }
   }
 
@@ -703,7 +719,7 @@
   try {
     await Promise.all([fetchDesigns(), fetchPrices()]);
     // Render initial batch
-    renderBatch(0, PAGE_SIZE);
+    renderBatch(0, INITIAL_BATCH);
     setupSentinel();
     $counter.textContent = totalDesigns + " items";
     // Fade out loading screen
