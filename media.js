@@ -9,15 +9,21 @@ function dispatchCatalogReady() {
   window.dispatchEvent(new Event('catalog-ready'));
 }
 
-async function loadCatalogFiles(pageSize = 48) {
+async function loadCatalogFiles(pageSize = 100) {
   try {
     const origin = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
-    const resp = await fetch(`${origin}/api/designs?format=pages&limit=${pageSize}`);
-    const data = await resp.json();
-    const designs = data.designs || [];
-    if (designs.length > 0) {
-      window.CATALOG_FILES = designs.map((d) => d.name).filter(Boolean);
-      window.CATALOG_TOTAL = Number(data.total || designs.length);
+    let page = 1, total = Infinity, all = [];
+    do {
+      const resp = await fetch(`${origin}/api/designs?format=pages&limit=${pageSize}&page=${page}`);
+      const data = await resp.json();
+      const designs = data.designs || [];
+      all = all.concat(designs);
+      total = Number(data.total || all.length);
+      page++;
+    } while (all.length < total && page < 20); // hard stop, just in case
+    if (all.length > 0) {
+      window.CATALOG_FILES = all.map((d) => d.name).filter(Boolean);
+      window.CATALOG_TOTAL = total;
       window.CATALOG_LOADED = true;
       dispatchCatalogReady();
       return;
