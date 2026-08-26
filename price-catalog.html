@@ -545,6 +545,7 @@
     }
     renderInitialSlides();
     updateCounter();
+    loadPrices();
     refreshCta();
   }
 
@@ -666,6 +667,19 @@
     setTimeout(() => {
       document.querySelectorAll(".slide").forEach((s) => io.observe(s));
       update();
+      // Add price pills to newly loaded slides
+      document.querySelectorAll(".slide").forEach((s) => {
+        if (s.querySelector(".price-pill")) return;
+        const item = s.dataset.item;
+        if (!item) return;
+        const p = prices[stem(item)];
+        const pill = document.createElement("span");
+        pill.className = "price-pill" + (p == null ? " empty" : "");
+        pill.innerHTML = p != null
+          ? '<span class="rs">₹</span> ' + Number(p).toLocaleString("en-IN")
+          : "Price on request";
+        s.appendChild(pill);
+      });
     }, 0);
   };
 
@@ -752,8 +766,6 @@
       });
     } catch (e) { /* keep slides clean if the API is unavailable */ }
   }
-  loadPrices();
-
   refreshCta();
 })();
 </script>
