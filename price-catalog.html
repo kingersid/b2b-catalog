@@ -387,9 +387,6 @@
   // Designs load asynchronously — wait for media.js to populate the list.
   await window.catalogReady;
   const FILES = window.CATALOG_FILES;
-  // Image URLs are keyed by design_id, not name — fetch that mapping too before
-  // anything tries to render a src= from it (see loadImageUrls() below).
-  await loadImageUrls();
 
   // Tiny blurred placeholders (base64 data URIs) painted instantly, faded out on full load.
   const LQIP = {
@@ -452,6 +449,7 @@
   // only has names, so fetch the id->url mapping directly, same fix as admin.html.
   // (Legacy pre-R2 designs happen to have name === design_id, which is why this
   // "worked" before for old designs but silently 404'd for every new upload.)
+  const stem = (f) => f.replace(/\.[^.]+$/, "");
   const imgByItem = {}; // stem(name) -> real R2-backed url
   async function loadImageUrls() {
     let page = 1, total = Infinity, all = [];
@@ -464,6 +462,7 @@
     } while (all.length < total && page < 20);
     all.forEach((d) => { if (d.name) imgByItem[stem(d.name)] = d.url; });
   }
+  await loadImageUrls();
   // Engagement API always hits the deployed backend (works from file:// and local dev).
   const API = ORIGIN + "/prices";
   const WA_NUMBER = "919537097267";
@@ -471,7 +470,6 @@
   const urlFor = (f) => imgByItem[stem(f)] || "";
   const webpUrl = (f) => imgByItem[stem(f)] || "";
   const midUrl = (f) => imgByItem[stem(f)] || "";
-  const stem = (f) => f.replace(/\.[^.]+$/, "");
   // The closing poster isn't a design row — it's a fixed R2 object, same convention as index.html.
   const LANDING = "landing.webp";
   const landingUrl = ORIGIN + "/api/designs?img=" + encodeURIComponent("designs/original/" + LANDING);
