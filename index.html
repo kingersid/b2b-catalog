@@ -545,6 +545,40 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   }
   .wa-cta:hover { filter: brightness(1.08); }
 
+  /* Inline booking modal — no redirect needed */
+  .book-modal {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.85);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .book-modal.show { display: flex; }
+  .book-modal .card {
+    background: var(--card); border:1px solid rgba(255,255,255,0.1);
+    border-radius: 18px; padding: 24px; width: 100%; max-width: 380px;
+  }
+  .book-modal h2 { font-size: 1.1rem; margin-bottom: 6px; }
+  .book-modal .sub { color: var(--muted); font-size: 0.8rem; margin-bottom: 16px; }
+  .book-modal label { display:block; font-size:0.78rem; font-weight:600; color:var(--muted); margin:12px 0 6px; }
+  .book-modal input {
+    width:100%; padding:12px 14px; border-radius:10px;
+    border:1px solid rgba(255,255,255,0.14); background:#0e1116; color:var(--text); font-size:15px;
+  }
+  .book-modal input:focus { outline:none; border-color:var(--accent); }
+  .book-modal button[type=submit] {
+    width:100%; margin-top:18px; padding:13px; border:none; border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); color:#000;
+    font-weight:700; font-size:15px; cursor:pointer;
+  }
+  .book-modal button[type=submit]:disabled { opacity:0.5; cursor:not-allowed; }
+  .book-modal .close-btn {
+    position:absolute; top:16px; right:18px; background:none; border:none;
+    color:#fff; font-size:22px; cursor:pointer; width:auto; padding:4px 8px;
+  }
+  .book-msg { margin-top:14px; padding:12px; border-radius:10px; font-size:0.88rem; display:none; }
+  .book-msg.ok { display:block; background:rgba(52,211,153,0.15); color:var(--accent); border:1px solid rgba(52,211,153,0.4); }
+  .book-msg.err { display:block; background:rgba(255,91,110,0.15); color:#ff5b6e; border:1px solid rgba(255,91,110,0.4); }
+
   /* Scroll-nudge: floating indicator that encourages scrolling after CTA click */
   .scroll-nudge {
     position: fixed;
@@ -874,6 +908,26 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     Book a video call
   </a>
   <div id="toast"></div>
+</div>
+
+<!-- ============ INLINE BOOKING MODAL ============ -->
+<div class="book-modal" id="book-modal">
+  <button class="close-btn" id="book-close" aria-label="Close">✕</button>
+  <div class="card">
+    <h2>📞 Book a Video Call</h2>
+    <p class="sub" id="book-sub">We'll assign the next available slot tomorrow from 12 PM onwards.</p>
+    <form id="book-form">
+      <label for="b-name">Your name *</label>
+      <input id="b-name" required placeholder="e.g. Priya Sharma" />
+      <label for="b-phone">Phone (WhatsApp) *</label>
+      <input id="b-phone" required type="tel" placeholder="9876543210" />
+      <label for="b-email">Email (optional)</label>
+      <input id="b-email" type="email" placeholder="you@example.com" />
+      <input type="hidden" id="b-design" />
+      <button type="submit" id="book-btn">Book My Slot</button>
+    </form>
+    <div id="book-msg" class="book-msg"></div>
+  </div>
 </div>
 
 <noscript><p style="color:#fff;padding:40px;text-align:center">This catalog needs JavaScript enabled.</p></noscript>
@@ -1699,10 +1753,76 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   }
   // Hearts bound after designs load (see initDetail)
 
-  const BOOK_CALL_URL = "https://chandni-business-os.kinger-siddharth.workers.dev/book-call";
+  const BOOK_CALL_URL = "https://chandni-business-os.kinger-siddharth.workers.dev/api/book-call";
+  const bookModal = document.getElementById("book-modal");
+  const bookForm = document.getElementById("book-form");
+  const bookBtn = document.getElementById("book-btn");
+  const bookMsg = document.getElementById("book-msg");
+  const bookClose = document.getElementById("book-close");
+  const bDesign = document.getElementById("b-design");
+  const bName = document.getElementById("b-name");
+  const bPhone = document.getElementById("b-phone");
+  const bEmail = document.getElementById("b-email");
+
+  function openBookModal(item) {
+    bDesign.value = item && item !== "landing" ? item : "";
+    bName.value = "";
+    bPhone.value = "";
+    bEmail.value = "";
+    bookMsg.className = "book-msg";
+    bookMsg.style.display = "none";
+    bookModal.classList.add("show");
+    setTimeout(() => bName.focus(), 50);
+  }
+  function closeBookModal() { bookModal.classList.remove("show"); }
+  bookClose.addEventListener("click", closeBookModal);
+  bookModal.addEventListener("click", (e) => { if (e.target === bookModal) closeBookModal(); });
+
+  bookForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    bookBtn.disabled = true;
+    bookBtn.textContent = "Booking…";
+    bookMsg.className = "book-msg";
+    bookMsg.style.display = "none";
+    const body = {
+      name: bName.value.trim(),
+      phone: bPhone.value.trim(),
+      email: bEmail.value.trim(),
+      designContext: bDesign.value || "",
+    };
+    try {
+      const r = await fetch(BOOK_CALL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (d.success) {
+        const t = d.startTime || "";
+        const date = t.slice(5, 10);
+        const time = t.slice(11, 16);
+        bookMsg.className = "book-msg ok";
+        bookMsg.style.display = "block";
+        bookMsg.innerHTML = "✅ <strong>Slot booked!</strong><br>We'll call you on <strong>" + date + "</strong> at <strong>" + time + "</strong> IST.<br>Questions? WhatsApp: <a href=\"https://wa.me/919537097267\" style=\"color:var(--accent)\">+91 9537 097 267</a>";
+        bookForm.reset();
+        bDesign.value = "";
+      } else {
+        bookMsg.className = "book-msg err";
+        bookMsg.style.display = "block";
+        bookMsg.textContent = "❌ " + (d.error || "Something went wrong.");
+      }
+    } catch (err) {
+      bookMsg.className = "book-msg err";
+      bookMsg.style.display = "block";
+      bookMsg.textContent = "❌ Network error. Please try again.";
+    } finally {
+      bookBtn.disabled = false;
+      bookBtn.textContent = "Book My Slot";
+    }
+  });
 
   // ---------- WhatsApp video-call CTA: Meta Pixel Lead + per-design D1 log ----------
-  // Redirect catalog CTA to the booking form (auto-assigns next-day 5 PM slot).
+  // Opens inline booking modal; backend auto-assigns next available slot.
   waCta.addEventListener("click", function (e) {
     const item = active > 0 && active < POSTER_INDEX ? FILES[active] : "landing";
     if (typeof fbq === "function") {
@@ -1713,7 +1833,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ itemId: item }),
     }).catch(() => {});
-    window.location.href = BOOK_CALL_URL + (item && item !== "landing" ? "?design=" + encodeURIComponent(item) : "");
+    openBookModal(item);
   });
 
   // ============================================================
