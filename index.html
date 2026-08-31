@@ -1699,8 +1699,11 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   }
   // Hearts bound after designs load (see initDetail)
 
+  const BOOK_CALL_URL = "https://chandni-business-os.kinger-siddharth.workers.dev/book-call";
+
   // ---------- WhatsApp video-call CTA: Meta Pixel Lead + per-design D1 log ----------
-  waCta.addEventListener("click", function () {
+  // Redirect catalog CTA to the booking form (auto-assigns next-day 5 PM slot).
+  waCta.addEventListener("click", function (e) {
     const item = active > 0 && active < POSTER_INDEX ? FILES[active] : "landing";
     if (typeof fbq === "function") {
       fbq("track", "Lead", { content_name: item });
@@ -1710,6 +1713,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ itemId: item }),
     }).catch(() => {});
+    window.location.href = BOOK_CALL_URL + (item && item !== "landing" ? "?design=" + encodeURIComponent(item) : "");
   });
 
   // ============================================================
