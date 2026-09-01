@@ -279,7 +279,7 @@ npx wrangler d1 execute chandni-catalog --remote --command "SELECT * FROM design
 ## Free-tier headroom
 
 | Resource | Free allowance | Catalog usage |
-|---|---|---|
+|---------|---------------|--------------|
 | Bandwidth | Unlimited | ~150KB per slide view |
 | Builds | 500/month | 1 per deploy |
 | Functions | 100k requests/day | ~2 per visitor (catalog + designs) |
@@ -287,3 +287,44 @@ npx wrangler d1 execute chandni-catalog --remote --command "SELECT * FROM design
 | R2 storage | 10 GB free | ~50MB (51 designs) |
 | R2 Class A ops | 1M/month (free) | ~1 per design view |
 | R2 Class B ops | 10M/month (free) | ~1 per page load |
+
+## Video Call Booking (Business OS integration)
+
+The "Book a video call" CTA is powered by the **Chandni Silk Mills Business OS** Worker
+(`chandni-business-os`). When a customer taps it on the catalog:
+
+1. An **inline booking modal** opens inside the catalog page — no redirect, no WhatsApp.
+2. The customer enters **name + phone** (+ optional email + design interest).
+3. On submit, the Worker:
+   - Creates a **lead** in D1 (`chandni-business-db`)
+   - Auto-finds the **next available 30-min slot** starting **tomorrow 12 PM IST**, walking to 8:30 PM
+   - Creates a **Google Calendar event** via Composio
+   - Appends a **row to Google Sheets**
+4. The modal confirms the assigned date/time in IST.
+
+### Tech details
+
+| Component | URL / ID |
+|-----------|----------|
+| Worker | `https://chandni-business-os.kinger-siddharth.workers.dev` |
+| Catalog → Worker endpoint | `POST /api/book-call` |
+| Calendar connected account | `ca_39XTl8I61kM8` (personal Google Calendar) |
+| Sheets connected account | `ca_3XDIUFtMAMym` |
+| Google Sheet | `1gDzVo_lgfcS_XmD_Xwsuz83UmXvjKVV8Y8gglB7kCok` |
+| Composio project | `pr_9oht8PRpJXqO` |
+
+### Slot-finder logic
+
+- Window: **tomorrow 12:00 PM → 8:30 PM IST**, 30-min increments
+- Busy slots = existing Google Calendar events (via Composio `GOOGLECALENDAR_LIST_EVENTS`) + existing D1 `calendar_events`
+- First free slot is assigned automatically
+- If all 17 slots are busy, returns 409 with "All slots tomorrow 12–8 PM are booked"
+
+### Backups
+
+| Tag | Date |
+|-----|------|
+| `backup-catalog-2026-08-31` | Aug 31 2026 |
+| `backup-business-os-2026-08-31` | Aug 31 2026 |
+
+Feature branch: `feat/video-call-booking` in both repos.

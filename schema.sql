@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS cta (
   count   INTEGER NOT NULL DEFAULT 0
 );
 
+-- Day-wise CTA events for trend analysis.
+-- Each row = one CTA click on a given design on a given day (Asia/Kolkata).
+CREATE TABLE IF NOT EXISTS cta_events (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  day     TEXT NOT NULL,           -- "YYYY-MM-DD" (Asia/Kolkata)
+  item_id TEXT NOT NULL,           -- design id or special label like "landing"
+  ts      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cta_events_day ON cta_events(day);
+CREATE INDEX IF NOT EXISTS idx_cta_events_item_day ON cta_events(item_id, day);
+
 -- Visit traffic sources (utm/src param > referrer > "direct"), so day-to-day
 -- swings in visits are explainable. One row per (day, source).
 CREATE TABLE IF NOT EXISTS sources (

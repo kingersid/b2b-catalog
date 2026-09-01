@@ -111,6 +111,16 @@ async function addCtaClick(env, itemId) {
   return { itemId, count: row?.count ?? 0 };
 }
 
+// Day-wise event sink for CTA clicks.
+async function addCtaEvent(env, itemId) {
+  const today = todayKolkata();
+  await env.CATALOG_DB
+    .prepare("INSERT INTO cta_events (day, item_id) VALUES (?1, ?2)")
+    .bind(today, String(itemId).trim().slice(0, 255))
+    .run();
+  await pruneOld(env, "cta_events");
+}
+
 // A session reported reaching `depth` (1 = first product image). The client sends
 // `from` = first depth of the newly covered range (backfilling slides skipped by fast
 // swipes), so every depth in [from..depth] gets +1. Each row is therefore cumulative:
@@ -133,12 +143,13 @@ async function addReach(env, depth, from) {
 // Funnel summary for the dashboard. Key-protected (DASH_KEY binding).
 async function getReach(env) {
   const today = todayKolkata();
-  const [todayRows, allRows, visitToday, visitAll, ctaRows, srcToday, srcAll] = await Promise.all([
+  const [todayRows, allRows, visitToday, visitAll, ctaRows, ctaDayRows, srcToday, srcAll] = await Promise.all([
     env.CATALOG_DB.prepare("SELECT depth, count FROM reach WHERE day = ?").bind(today).all(),
     env.CATALOG_DB.prepare("SELECT depth, SUM(count) AS total FROM reach GROUP BY depth ORDER BY depth").all(),
     env.CATALOG_DB.prepare("SELECT count FROM visits WHERE day = ?").bind(today).first(),
     env.CATALOG_DB.prepare("SELECT SUM(count) AS total FROM visits").first(),
     env.CATALOG_DB.prepare("SELECT item_id, count FROM cta").all(),
+    env.CATALOG_DB.prepare("SELECT day, item_id, COUNT(*) as clicks FROM cta_events GROUP BY day, item_id ORDER BY day DESC").all(),
     env.CATALOG_DB.prepare("SELECT source, count FROM sources WHERE day = ? ORDER BY count DESC").bind(today).all(),
     env.CATALOG_DB.prepare("SELECT source, SUM(count) AS total FROM sources GROUP BY source ORDER BY total DESC").all(),
   ]);
@@ -150,6 +161,7 @@ async function getReach(env) {
     todayFunnel: (todayRows.results || []).map((r) => ({ depth: r.depth, count: r.count })),
     allFunnel: (allRows.results || []).map((r) => ({ depth: r.depth, count: r.total })),
     ctaClicks: Object.fromEntries((ctaRows.results || []).map((r) => [r.item_id, r.count])),
+    ctaByDay: (ctaDayRows.results || []).map((r) => ({ day: r.day, item_id: r.item_id, clicks: r.clicks })),
     sourcesToday: (srcToday.results || []).map((r) => ({ source: r.source, count: r.count })),
     sourcesAll: (srcAll.results || []).map((r) => ({ source: r.source, count: r.total })),
   };
@@ -195,6 +207,7 @@ export async function onRequest(context) {
         const body = await request.json().catch(() => ({}));
         const itemId = String(body?.itemId ?? "").trim().slice(0, 255);
         if (!itemId) return json({ error: "itemId required" }, 400);
+        await addCtaEvent(env, itemId);
         return json(await addCtaClick(env, itemId));
       }
       if (action === "reach") {

@@ -312,7 +312,19 @@ h1{font-size:22px;margin-bottom:4px}
   </div>
 </div>
 
-<p style="text-align:center;color:var(--muted);font-size:12px;margin-top:40px">Last updated: Aug 21, 2026 09:30 IST</p>
+<div class="section-title">📅 Video Call CTA — Day-wise (Last 14 Days)</div>
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+  <div class="stat" style="text-align:center">
+    <div class="label">Latest Day Clicks</div>
+    <div class="value" id="cta-day-total">—</div>
+  </div>
+</div>
+<div id="cta-day-rows" style="margin-top:12px"></div>
+
+<div class="section-title">🏆 Video Call CTA — Design-wise (All-time)</div>
+<div id="cta-design-rows" class="grid"></div>
+
+<p style="text-align:center;color:var(--muted);font-size:12px;margin-top:40px">Last updated: <span id="dash-updated">—</span></p>
 
 
   </div>
@@ -351,14 +363,54 @@ h1{font-size:22px;margin-bottom:4px}
       const d = await r.json();
       if (d.error) { if (!noErr) document.getElementById("err").textContent = d.error; return false; }
       window._data = d;
+      const upd = document.getElementById("dash-updated");
+      if (upd) upd.textContent = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST";
+      renderCTA();
       return true;
     } catch (e) {
       if (!noErr) document.getElementById("err").textContent = "Network error";
       return false;
     }
   }
+  if (key) load();
   setInterval(() => { if (window._data) load(); }, 60000);
-</script>
+
+  function renderCTA() {
+    const data = window._data || {};
+    const ctaByDay = data.ctaByDay || [];
+    const ctaClicks = data.ctaClicks || {};
+    const days = Array.from(new Set(ctaByDay.map(r => r.day))).sort().slice(-14);
+
+    const dayTotalEl = document.getElementById("cta-day-total");
+    if (dayTotalEl) dayTotalEl.textContent = days.length ? String(ctaByDay.filter(r => r.day === days[days.length - 1]).reduce((s, r) => s + r.clicks, 0)) : "0";
+
+    const dayRows = document.getElementById("cta-day-rows");
+    if (dayRows) {
+      dayRows.innerHTML = "";
+      days.forEach(day => {
+        const items = ctaByDay.filter(r => r.day === day);
+        const total = items.reduce((s, r) => s + r.clicks, 0);
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border)";
+        row.innerHTML = `<div style="width:110px;color:var(--muted);font-size:13px">${day}</div><div style="flex:1;font-size:20px;font-weight:800;color:var(--accent2)">${total}</div><div style="color:var(--muted);font-size:12px">${items.length} design${items.length === 1 ? '' : 's'}</div>`;
+        dayRows.appendChild(row);
+      });
+      if (!days.length) dayRows.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:8px 10px">No day-wise CTA events yet.</div>`;
+    }
+
+    const designRows = document.getElementById("cta-design-rows");
+    if (designRows) {
+      designRows.innerHTML = "";
+      const top = Object.entries(ctaClicks).sort((a, b) => (b[1] - a[1])).slice(0, 20);
+      top.forEach(([itemId, count]) => {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border)";
+        row.innerHTML = `<div style="color:var(--text);font-size:13px;word-break:break-all">${itemId}</div><div style="color:var(--accent2);font-weight:800;font-size:14px">${count}</div>`;
+        designRows.appendChild(row);
+      });
+      if (!top.length) designRows.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:8px 10px">No CTA clicks yet.</div>`;
+    }
+  }
 
 </body>
 </html>
