@@ -150,6 +150,29 @@ echo ""
 echo "**Total CTA clicks: $TOTAL_CTA**"
 echo ""
 
+# ── 4b. Day-wise CTA Clicks ──────────────────────────────────
+echo "### 📅 WhatsApp CTA Clicks (day-wise, last 14 days)"
+echo ""
+echo "| Date | Clicks | Designs |"
+echo "|------|--------|---------|"
+
+query "SELECT day, item_id, COUNT(*) as clicks FROM cta_events GROUP BY day, item_id ORDER BY day DESC;" | node -e "
+  let b=''; process.stdin.on('data',d=>b+=d); process.stdin.on('end',()=>{
+    const rows = JSON.parse(b);
+    if (!rows.length) { console.log('| (no data) | — | — |'); return; }
+    const byDay = {};
+    rows.forEach(r => {
+      if (!byDay[r.day]) byDay[r.day] = { total: 0, designs: 0 };
+      byDay[r.day].total += r.clicks;
+      byDay[r.day].designs += 1;
+    });
+    Object.keys(byDay).sort().reverse().slice(0,14).forEach(day => {
+      const s = byDay[day];
+      console.log('| ' + day + ' | ' + s.total + ' | ' + s.designs + ' |');
+    });
+  });"
+echo ""
+
 # ── 5. Hearts ────────────────────────────────────────────────
 echo "### ❤️ Hearts (Likes)"
 echo ""
