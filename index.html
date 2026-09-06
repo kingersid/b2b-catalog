@@ -998,7 +998,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       FILES = allFiles.slice();
       TOTAL = Number(data.total || allFiles.length);
       POSTER_INDEX = TOTAL;
-      renderedCount = Math.min(PAGE_SIZE, TOTAL);
+      renderedCount = TOTAL;
       designsLoaded = true;
       return true;
     } catch (e) {
