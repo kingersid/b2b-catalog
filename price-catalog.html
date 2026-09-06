@@ -631,11 +631,14 @@
     const s = stem(design.name);
     const p = prices[s];
     const priceTxt = p != null ? " (₹" + formatINR(p) + ")" : "";
+    const imgParam = encodeURIComponent("designs/original/" + s + ".jpg");
+    const imgUrl = ORIGIN + "/api/designs?img=" + imgParam;
     const shareLink = ORIGIN + "/share?item=" + encodeURIComponent(s);
     const msg = encodeURIComponent(
       "Hi Chandni Silk Mills! 👋 I saw design " + s + priceTxt +
       " and I'd like to enquire about it." +
-      "\n\n" + shareLink
+      "\n\nDesign image: " + imgUrl +
+      "\n\nCatalog link: " + shareLink
     );
     $waCta.href = "https://wa.me/" + WA_NUMBER + "?text=" + msg;
   }
