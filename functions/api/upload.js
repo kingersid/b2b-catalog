@@ -57,6 +57,15 @@ export async function onRequestPost({ request, env }) {
   const ext = file.name.split(".").pop().toLowerCase() === "webp" ? "webp" : "jpg";
   const name = file.name.replace(/\.[^.]+$/, "").slice(0, 80); // filename stem for display
 
+  // Prevent duplicate uploads by normalized name or design_id reuse
+  const normalized = name.toLowerCase();
+  const exists = await env.CATALOG_DB.prepare(
+    "SELECT 1 FROM designs WHERE LOWER(name) = ? OR design_id = ? LIMIT 1"
+  ).bind(normalized, designId).first();
+  if (exists) {
+    return json({ error: "This design is already in the catalog" }, 409);
+  }
+
   try {
     const bytes = await file.arrayBuffer();
 
