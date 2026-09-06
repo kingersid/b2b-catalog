@@ -78,7 +78,7 @@ export async function onRequestPost({ request, env }) {
 
     // 2. Insert into D1 designs table
     await env.CATALOG_DB.prepare(
-      "INSERT INTO designs (design_id, name, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM designs))"
+      "INSERT INTO designs (design_id, name, sort_order) VALUES (?, ?, (SELECT COALESCE(MIN(sort_order), 0) - 1 FROM designs))"
     ).bind(designId, name).run();
 
     const created = await env.CATALOG_DB.prepare(
