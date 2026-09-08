@@ -987,6 +987,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   const PAGE_SIZE = 36;
   let allFiles = []; // full catalog from API
   let loadingMore = false;
+  let idByStem = {}; // stem(name) -> design_id for correct R2 image URLs
 
   async function loadDesigns() {
     try {
@@ -995,6 +996,9 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       const data = await resp.json();
       const designs = data.designs || [];
       allFiles = designs.map((d) => d.name).filter(Boolean);
+      // Build stem -> design_id map so image URLs use the correct R2 key
+      idByStem = {};
+      designs.forEach((d) => { if (d.name && d.design_id) idByStem[stem(d.name)] = d.design_id; });
       FILES = allFiles.slice();
       TOTAL = Number(data.total || allFiles.length);
       POSTER_INDEX = TOTAL;
@@ -1108,9 +1112,9 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   const IS_FILE = location.protocol === "file:";
   // Image URLs go through the API proxy (R2 is not public by default)
   const imgUrl = (key) => (IS_FILE ? key : ORIGIN + "/api/designs?img=" + encodeURIComponent(key));
-  const urlFor = (f) => imgUrl("designs/original/" + encodeURIComponent(f.toLowerCase()));
-  const webpUrl = (f) => imgUrl("designs/original/" + encodeURIComponent(f.toLowerCase()));
-  const midUrl = (f) => imgUrl("designs/original/" + encodeURIComponent(f.toLowerCase()));
+  const urlFor = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/original/" + encodeURIComponent(id) + ".jpg"); };
+  const webpUrl = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/original/" + encodeURIComponent(id) + ".jpg"); };
+  const midUrl = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/original/" + encodeURIComponent(id) + ".jpg"); };
   // Engagement API always hits the deployed backend (works from file:// and local dev).
   const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : ORIGIN) + "/api/catalog";
   const WA_NUMBER = "919537097267";

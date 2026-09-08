@@ -38,8 +38,15 @@ export async function onRequest({ request, env }) {
       if (!imgKey.startsWith(validPrefix)) {
         return new Response("Invalid key", { status: 400 });
       }
-      const object = await env.DESIGNS_BUCKET.get(imgKey);
-      if (!object) return new Response("Not found", { status: 404 });
+      let object = await env.DESIGNS_BUCKET.get(imgKey);
+      // Fallback: proxy from production when local R2 is empty
+      if (!object) {
+        try {
+          const remote = await fetch("https://chandni-catalog.pages.dev/api/designs?img=" + encodeURIComponent(imgKey));
+          if (remote.ok) return remote;
+        } catch (_) { /* fall through to 404 */ }
+        return new Response("Not found", { status: 404 });
+      }
 
       const headers = new Headers();
       object.writeHttpMetadata(headers);
