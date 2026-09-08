@@ -139,6 +139,20 @@
     text-align: right;
     min-height: 14px;
   }
+  .card .del {
+    border: 1px solid rgba(248,113,113,0.45);
+    background: rgba(248,113,113,0.1);
+    color: #f87171;
+    border-radius: 8px;
+    padding: 7px 0;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.15s;
+  }
+  .card .del:hover { background: rgba(248,113,113,0.22); }
+  .card .del:disabled { opacity: 0.5; cursor: default; }
 
   /* ---------- Responsive: tablet ---------- */
   @media (max-width: 768px) {
@@ -211,6 +225,20 @@
   const statTotal = document.getElementById("stat-total");
   const statDone = document.getElementById("stat-done");
   const prices = {};
+  const DELETE_API = ORIGIN + "/api/designs";
+  const designIdByStem = {}; // stem(name) -> design_id (for delete)
+
+  // Ask once per session for the upload key (same secret as /api/upload).
+  // Empty/cancelled returns null and the caller aborts.
+  async function getUploadKey() {
+    let key = localStorage.getItem("uploadKey") || "";
+    if (!key) {
+      key = prompt("Enter the upload key to delete designs:") || "";
+      if (!key) return null;
+      localStorage.setItem("uploadKey", key);
+    }
+    return key;
+  }
   // design_id/url data isn't in window.CATALOG_FILES (that's names only) —
   // fetch it directly so thumbnails point at a URL that actually exists.
   const thumbById = {}; // stem(name) -> real image url
@@ -223,7 +251,12 @@
       total = Number(d.total || all.length);
       page++;
     } while (all.length < total && page < 20);
-    all.forEach((d) => { if (d.name) thumbById[stem(d.name)] = d.url; });
+    all.forEach((d) => {
+      if (d.name) {
+        thumbById[stem(d.name)] = d.url;
+        designIdByStem[stem(d.name)] = d.design_id;
+      }
+    });
   }
   const thumbUrl = (f) => thumbById[stem(f)] || "";
 
@@ -248,12 +281,14 @@
             '<input id="inp-' + item + '" type="number" min="0" inputmode="numeric" placeholder="₹ price"' +
               (p != null ? ' value="' + p + '"' : "") + '>' +
             '<button type="button" id="btn-' + item + '">' + (p != null ? "Update" : "Save") + "</button>" +
-          "</div>" +
+          '</div>' +
+          '<button type="button" class="del" id="del-' + item + '">Delete</button>' +
           '<div class="saved" id="msg-' + item + '"></div>' +
         "</div>";
       grid.appendChild(card);
       const input = card.querySelector("input");
-      const btn = card.querySelector("button");
+      const btn = card.querySelector(".row button");
+      const delBtn = card.querySelector(".del");
       const msg = card.querySelector(".saved");
       btn.addEventListener("click", async () => {
         const raw = input.value.trim();
@@ -286,6 +321,38 @@
           msg.textContent = "Error — try again";
         }
         btn.disabled = false;
+      });
+
+      // Delete (soft) — hides the design from the main + price catalogs.
+      delBtn.addEventListener("click", async () => {
+        const designId = designIdByStem[item];
+        if (!designId) {
+          msg.textContent = "Can't delete — id unknown";
+          return;
+        }
+        const key = await getUploadKey();
+        if (key == null) return; // user cancelled
+        if (!confirm("Delete " + f + " from the catalog?\n\nIt will disappear from the main + price catalogs. Images are kept and it can be restored later.")) return;
+        delBtn.disabled = true;
+        msg.textContent = "Deleting…";
+        try {
+          const r = await fetch(DELETE_API + "?id=" + encodeURIComponent(designId) + "&key=" + encodeURIComponent(key), { method: "DELETE" });
+          const d = await r.json().catch(() => ({}));
+          if (r.ok && d.ok) {
+            card.remove();
+            delete prices[item];
+            const files = window.CATALOG_FILES;
+            const i = files.indexOf(f);
+            if (i !== -1) files.splice(i, 1);
+            updateStats();
+          } else {
+            msg.textContent = d.error || "Delete failed (" + r.status + ")";
+            delBtn.disabled = false;
+          }
+        } catch (e) {
+          msg.textContent = "Error — try again";
+          delBtn.disabled = false;
+        }
       });
     });
     updateStats();
