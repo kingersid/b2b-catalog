@@ -90,9 +90,9 @@ export async function onRequest({ request, env }) {
       return new Response(object.body, { headers });
     }
 
-    // List mode
+    // Highest order first; uploads receive a new maximum to stay at the top.
     const { results } = await env.CATALOG_DB
-      .prepare("SELECT design_id, name, sort_order, created_at, active FROM designs WHERE active = 1 ORDER BY sort_order ASC, created_at ASC")
+      .prepare("SELECT design_id, name, sort_order, created_at, active FROM designs WHERE active = 1 ORDER BY sort_order DESC, created_at DESC")
       .all();
 
     if (format === "files") {
