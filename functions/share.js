@@ -1,4 +1,4 @@
-// Cloudflare Pages Function: /share.html?id=... or /share.html?index=N
+// Cloudflare Pages Function: /share?id=... or /share?index=N
 // Renders the share page with OG meta tags set in the HTML (not via JS),
 // so WhatsApp/social crawlers can read them for preview cards.
 
@@ -7,7 +7,7 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   const origin = url.origin;
   const params = url.searchParams;
-  const id = params.get("id");
+  const id = params.get("id") || params.get("item");
   const idx = params.get("index");
 
   try {
@@ -56,7 +56,7 @@ export async function onRequest(context) {
 <meta property="og:image" content="${imageUrl}" />
 <meta property="og:image:width" content="600" />
 <meta property="og:image:height" content="800" />
-<meta property="og:url" content="${origin}/share.html?index=${designNum ? designNum - 1 : 0}" />
+<meta property="og:url" content="${origin}/share${file ? '?id=' + encodeURIComponent(stem(file)) : ''}" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${title}" />
 <meta name="twitter:description" content="${description}" />
