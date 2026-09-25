@@ -1,0 +1,141 @@
+{
+  "name": "WhatsApp Catalog Agent - Designs with Rates",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp-catalog-agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "verify-webhook",
+      "name": "Verify Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-900, -240],
+      "webhookId": "344bcdf6-15c6-4ced-bc3d-48c1284dd1f9"
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = $json.query || {};\nconst expected = 'REPLACE_WITH_VERIFY_TOKEN';\nconst ok = q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === expected;\nreturn [{ json: { ok, challenge: ok ? String(q['hub.challenge'] || '') : 'Verification failed' } }];"
+      },
+      "id": "verify-token",
+      "name": "Verify Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, -240]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": "={{ $json.ok ? 200 : 403 }}"
+        }
+      },
+      "id": "verify-response",
+      "name": "Verification Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [-460, -240]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-catalog-agent",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "inbound-webhook",
+      "name": "Inbound WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-900, 120],
+      "webhookId": "40fced1c-263e-4012-8611-754ea8bd9818"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst value = body.entry?.[0]?.changes?.[0]?.value || {};\nconst message = value.messages?.[0];\nif (!message?.id || message.type !== 'text') return [];\nconst state = $getWorkflowStaticData('global');\nstate.seen ||= {};\nif (state.seen[message.id]) return [];\nstate.seen[message.id] = Date.now();\nfor (const [id, at] of Object.entries(state.seen)) if (Date.now() - at > 604800000) delete state.seen[id];\nconst sender = String(message.from || '').replace(/\\D/g, '');\nconst text = String(message.text?.body || '').trim();\nif (!sender || !text) return [];\nconst wantsDesigns = /(design|catalog|rate|rates|price|prices|fabric|collection|dikhao|bhejo|bhav|daam)/i.test(text);\nreturn [{ json: { sender, text, messageId: message.id, wantsDesigns } }];"
+      },
+      "id": "parse-message",
+      "name": "Parse Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-680, 120]
+    },
+    {
+      "parameters": {
+        "url": "https://chandni-catalog.pages.dev/api/designs?format=full&limit=100&page=1",
+        "options": {}
+      },
+      "id": "get-designs",
+      "name": "Get Active Designs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-460, 120]
+    },
+    {
+      "parameters": {
+        "url": "https://chandni-catalog.pages.dev/prices",
+        "options": {}
+      },
+      "id": "get-prices",
+      "name": "Get Rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-240, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Parse Message').first().json;\nif (!request.wantsDesigns) {\n  return [{ json: { payload: { messaging_product: 'whatsapp', to: request.sender, type: 'text', text: { body: 'Namaste! Send DESIGN, CATALOG, RATE or PRICE and I will share our latest available designs with rates.' } } } }];\n}\nconst catalog = $('Get Active Designs').first().json.designs || [];\nconst prices = $json.prices || {};\nconst stem = name => String(name || '').replace(/\\.[^.]+$/, '');\nconst priceFor = design => {\n  const name = String(design.name || ''); const id = String(design.design_id || ''); const base = stem(name);\n  for (const key of [id, name, base, id.toLowerCase(), name.toLowerCase(), base.toLowerCase()]) {\n    if (key && Object.prototype.hasOwnProperty.call(prices, key) && Number(prices[key]) > 0) return Number(prices[key]);\n  }\n  return null;\n};\nconst selected = catalog.map(d => ({ ...d, rate: priceFor(d) })).filter(d => d.rate != null).slice(0, 3);\nif (!selected.length) return [{ json: { payload: { messaging_product: 'whatsapp', to: request.sender, type: 'text', text: { body: 'New designs are being updated. Please message us again shortly or ask for a salesperson.' } } } }];\nreturn selected.map((design, index) => ({ json: { payload: { messaging_product: 'whatsapp', to: request.sender, type: 'image', image: { link: design.url, caption: `Design ${index + 1} · ₹${design.rate.toLocaleString('en-IN')}\\nView: https://chandni-catalog.pages.dev/share?id=${encodeURIComponent(design.design_id)}\\nReply MORE for more designs.` } } } }));"
+      },
+      "id": "prepare-replies",
+      "name": "Prepare Catalog Replies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-20, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/1329088423615686/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "send-reply",
+      "name": "Send WhatsApp Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 120],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "jpKWnt2gUdl3K08x",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Verify Webhook": { "main": [[{ "node": "Verify Token", "type": "main", "index": 0 }]] },
+    "Verify Token": { "main": [[{ "node": "Verification Response", "type": "main", "index": 0 }]] },
+    "Inbound WhatsApp": { "main": [[{ "node": "Parse Message", "type": "main", "index": 0 }]] },
+    "Parse Message": { "main": [[{ "node": "Get Active Designs", "type": "main", "index": 0 }]] },
+    "Get Active Designs": { "main": [[{ "node": "Get Rates", "type": "main", "index": 0 }]] },
+    "Get Rates": { "main": [[{ "node": "Prepare Catalog Replies", "type": "main", "index": 0 }]] },
+    "Prepare Catalog Replies": { "main": [[{ "node": "Send WhatsApp Reply", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
