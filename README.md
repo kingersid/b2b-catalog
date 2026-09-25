@@ -1,8 +1,50 @@
 # Chandni Silk Mills — Catalog (Cloudflare Pages + D1 + R2)
 
-Migrated from the Netlify Drop app (`Photos-1-001`) to **Cloudflare Pages + D1 + R2** because
-Netlify's free tier (100 GB/month bandwidth) was exhausted. Cloudflare Pages has
-**unlimited bandwidth**, 500 builds/month, and 100k free function requests/day.
+A mobile first fabric catalog with private wholesale pricing, WhatsApp sharing, and
+automatic synchronization to a Meta Commerce catalog. It runs on Cloudflare Pages,
+D1, and R2.
+
+## Daily Catalog Workflow
+
+### Add and publish a design
+
+1. Open [Upload Designs](https://chandni-catalog.pages.dev/upload) and upload a portrait photo.
+2. Open [Catalog Admin](https://chandni-catalog.pages.dev/admin), enter the access key, and set the real wholesale price.
+3. Check [Price Catalog](https://chandni-catalog.pages.dev/price-catalog). The saved price appears immediately.
+4. Meta reads the live feed every hour and adds the design automatically.
+
+The real wholesale price stays on the Chandni catalog. Meta receives a fixed **₹1
+placeholder** and **“Price on request”** for every product.
+
+### Hide or restore a design
+
+1. Open [Catalog Admin](https://chandni-catalog.pages.dev/admin).
+2. Select **Hide** on a design to remove it from the public catalog and Meta feed.
+3. Select **Restore** to publish it again. If it has a saved positive price, it returns to the Meta feed automatically.
+
+```text
+Upload → Set real price → Website updates immediately → Meta updates hourly
+Hide   → Website removes item immediately → Meta removes it on its next refresh
+```
+
+## Live Pages
+
+| Page | Purpose |
+|------|---------|
+| [Main catalog](https://chandni-catalog.pages.dev/) | Customer grid and full-screen design viewer |
+| [Price catalog](https://chandni-catalog.pages.dev/price-catalog) | Customer catalog with real saved prices |
+| [Upload](https://chandni-catalog.pages.dev/upload) | Add portrait design photos |
+| [Admin](https://chandni-catalog.pages.dev/admin) | Set prices and hide or restore designs |
+| [Meta feed](https://chandni-catalog.pages.dev/meta-feed) | Scheduled CSV source with placeholder prices |
+| [Dashboard](https://chandni-catalog.pages.dev/dashboard) | Catalog engagement analytics |
+
+## Price Privacy
+
+- D1 stores the real price.
+- The website price catalog displays the real price.
+- The Meta feed uses `1 INR` for every listed design and labels it `Price on request`.
+- A design must still have a positive saved price before the Meta feed publishes it.
+- Do not change the feed to export the real D1 price.
 
 ## Architecture
 
@@ -234,8 +276,10 @@ npm run check:portrait   # standalone: exit 0 = all portrait, 1 = abort
 | URL | Description |
 |-----|-------------|
 | `/` | Main catalog — grid view, tap to open full-screen |
-| `/admin` | Price admin — enter/edit ₹ prices per design |
+| `/upload` | Add portrait design photos |
+| `/admin` | Enter/edit real prices and hide or restore designs |
 | `/price-catalog` | Price catalog — scrollable full-screen feed with prices |
+| `/meta-feed` | Meta CSV feed with fixed placeholder prices |
 | `/dashboard` | Analytics dashboard (key-protected) |
 
 ## Dashboard (design views)
@@ -256,14 +300,16 @@ The price catalog and admin pages use a separate `/prices` API backed by D1:
 curl https://chandni-catalog.pages.dev/prices
 # -> { "prices": { "item-id": 450, ... } }
 
-# Set a price (via admin page or API)
-curl -X POST -H "content-type: application/json" \
+# Set a price (normally use the admin page)
+curl -X POST -H "content-type: application/json" -H "x-upload-key: <UPLOAD_KEY>" \
   -d '{"itemId": "item-id", "price": 450}' \
   https://chandni-catalog.pages.dev/prices
 ```
 
 Prices are stored in the `prices` table (D1). A design with no price shows
-"Price on request" in the price catalog.
+"Price on request" in the website price catalog and is excluded from the Meta feed.
+The Meta feed uses the saved positive price only as a publication gate and replaces
+its value with the fixed `1 INR` placeholder.
 
 ## Viewing counter / hearts data
 

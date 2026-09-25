@@ -9,6 +9,40 @@ Project conventions and CI/CD pipeline info for AI agents working on this codeba
 - **Live**: https://chandni-catalog.pages.dev
 - **Account ID**: `e80e472d0cd0037855bc396a3b7f7d97`
 
+## Catalog Management Flow
+
+The live admin pages and production D1 database are the operational source of truth.
+
+1. Upload a portrait design at `https://chandni-catalog.pages.dev/upload`.
+2. The upload endpoint creates the design in D1 and stores its image variants in R2.
+3. Open `https://chandni-catalog.pages.dev/admin`, enter the `UPLOAD_KEY`, and set the real wholesale price.
+4. The design immediately appears with its real price in `/price-catalog`.
+5. `/meta-feed` includes active designs only after a positive real price has been saved.
+6. Meta imports the feed every hour. The feed sends a fixed `1 INR` placeholder and the text `Price on request`; it never sends the saved wholesale price.
+7. Hiding a design in `/admin` sets `designs.active = 0`. It disappears from the public catalogs and from the next Meta feed refresh. Restoring it reverses this.
+
+```text
+Upload portrait design
+        ↓
+Set private wholesale price in /admin
+        ↓
+Website price catalog shows the real price
+        ↓
+Meta feed publishes the item as “Price on request” with a 1 INR placeholder
+
+Hide design in /admin
+        ↓
+Website and Meta feed stop listing it
+```
+
+### Price Privacy Rule
+
+- Real prices are stored only in the D1 `prices` table and shown by the site's price catalog.
+- `functions/meta-feed.js` must never interpolate `design.price` into feed output.
+- Keep `META_PLACEHOLDER_PRICE` at a valid numeric Meta price such as `1 INR`; a literal value such as `XXX` is not a valid feed price.
+- A saved positive price is still the publication gate for Meta, even though its value is replaced in the feed.
+- Test feed changes by confirming every product row has the placeholder and that no known real price appears.
+
 ## Architecture
 
 ```
@@ -88,6 +122,8 @@ npm run deploy   # runs portrait check + wrangler pages deploy
 | `functions/api/upload.js` | Upload endpoint (multipart → R2 + D1 row) |
 | `functions/prices.js` | Prices API (GET/POST for per-design ₹ prices) — D1-backed |
 | `functions/share.js` | Share page — server-rendered OG tags, fetches design list from D1 |
+| `functions/meta-feed.js` | Scheduled Meta CSV feed; exports active priced designs with a fixed placeholder price |
+| `functions/api/manage-designs.js` | Authenticated design listing and Hide/Restore actions |
 | `schema.sql` | D1 schema (all 7 tables) |
 | `wrangler.toml` | Cloudflare Pages + D1 + R2 config |
 | `scripts/check-portrait.mjs` | Deploy guard — rejects landscape images |
@@ -259,10 +295,23 @@ Requires `UPLOAD_KEY` secret: `npx wrangler pages secret put UPLOAD_KEY`
 
 ### `/prices`
 
-| Method | Body | Description |
-|--------|------|-------------|
+| Method | Body / Auth | Description |
+|--------|-------------|-------------|
 | GET | — | All prices `{prices: {itemId: price}}` |
-| POST | `{itemId, price}` | Set/remove a price (null removes) |
+| POST | `x-upload-key` + `{itemId, price}` | Set/remove a price (`null` removes) |
+
+### `/api/manage-designs`
+
+| Method | Body / Auth | Description |
+|--------|-------------|-------------|
+| GET | `x-upload-key` | List active and hidden designs with prices for the admin page |
+| POST | `x-upload-key` + `{designId, active}` | Hide or restore a design |
+
+### `/meta-feed`
+
+| Method | Description |
+|--------|-------------|
+| GET | CSV feed of active, positively priced designs for Meta; always exports `1 INR` and `Price on request` |
 
 ### `/share`
 
@@ -275,8 +324,9 @@ Requires `UPLOAD_KEY` secret: `npx wrangler pages secret put UPLOAD_KEY`
 ### Via iPhone Upload (preferred)
 
 1. Open the upload page on your phone
-2. Select a photo → it's auto-optimized and uploaded to R2 + D1
-3. The design appears in the catalog immediately
+2. Select a photo → it is optimized and uploaded to R2 + D1.
+3. Open `/admin` and save a positive real price.
+4. The website updates immediately; Meta receives it during the next hourly feed refresh with the placeholder price.
 
 ### Via Google Photos
 
