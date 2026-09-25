@@ -46,6 +46,13 @@ Hide   → Website removes item immediately → Meta removes it on its next refr
 - A design must still have a positive saved price before the Meta feed publishes it.
 - Do not change the feed to export the real D1 price.
 
+## WhatsApp AI Agent
+
+The staged plan for connecting this catalog to the existing WhatsApp Cloud API CRM is
+in [docs/WHATSAPP_AI_AGENT_ROADMAP.md](docs/WHATSAPP_AI_AGENT_ROADMAP.md). It covers
+catalog data, hosted CRM infrastructure, deterministic product tools, AI evaluation,
+human approval, controlled rollout, and order automation.
+
 ## Architecture
 
 ```
