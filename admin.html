@@ -31,6 +31,11 @@
   header h1 span { color: var(--accent-2); }
   header .sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
   header .links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .key-wrap { display: flex; gap: 8px; align-items: center; width: min(100%, 360px); }
+  .key-wrap input {
+    min-width: 0; flex: 1; background: #10131a; color: var(--text);
+    border: 1px solid rgba(255,255,255,0.16); border-radius: 9px; padding: 8px 10px;
+  }
   header a.pill {
     text-decoration: none;
     color: var(--muted);
@@ -139,20 +144,17 @@
     text-align: right;
     min-height: 14px;
   }
-  .card .del {
-    border: 1px solid rgba(248,113,113,0.45);
-    background: rgba(248,113,113,0.1);
-    color: #f87171;
-    border-radius: 8px;
-    padding: 7px 0;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    width: 100%;
-    transition: background 0.15s;
+  .manage-row { display: flex; gap: 6px; }
+  .visibility {
+    flex: 1; border: 1px solid rgba(248,113,113,0.5); background: rgba(248,113,113,0.1);
+    color: #fca5a5; border-radius: 8px; padding: 8px; font-weight: 700; cursor: pointer;
   }
-  .card .del:hover { background: rgba(248,113,113,0.22); }
-  .card .del:disabled { opacity: 0.5; cursor: default; }
+  .visibility.restore { border-color: rgba(52,211,153,0.5); background: rgba(52,211,153,0.1); color: var(--accent); }
+  .card.hidden-design { opacity: 0.62; }
+  .card.hidden-design .thumb::after {
+    content: "HIDDEN"; position: absolute; inset: auto 6px 6px; text-align: center;
+    background: rgba(0,0,0,0.82); color: #fff; padding: 5px; border-radius: 6px; font-size: 11px; font-weight: 800;
+  }
 
   /* ---------- Responsive: tablet ---------- */
   @media (max-width: 768px) {
@@ -199,6 +201,9 @@
     <a class="pill" href="price-catalog.html">← Price catalog</a>
     <a class="pill" href="index.html">Full catalog</a>
   </div>
+  <div class="key-wrap">
+    <input type="password" id="key" placeholder="Admin access key" autocomplete="off">
+  </div>
 </header>
 
 <div class="rule">
@@ -214,82 +219,56 @@
 
 <div class="grid" id="grid"></div>
 
-<script src="media.js"></script>
 <script>
   const IS_FILE = location.protocol === "file:";
   const ORIGIN = IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin;
-  const API = ORIGIN + "/prices";
-  const stem = (f) => f.replace(/\.[^.]+$/, "");
+  const PRICE_API = ORIGIN + "/prices";
+  const MANAGE_API = ORIGIN + "/api/manage-designs";
 
   const grid = document.getElementById("grid");
   const statTotal = document.getElementById("stat-total");
   const statDone = document.getElementById("stat-done");
-  const prices = {};
-  const DELETE_API = ORIGIN + "/api/designs";
-  const designIdByStem = {}; // stem(name) -> design_id (for delete)
-
-  // Ask once per session for the upload key (same secret as /api/upload).
-  // Empty/cancelled returns null and the caller aborts.
-  async function getUploadKey() {
-    let key = localStorage.getItem("uploadKey") || "";
-    if (!key) {
-      key = prompt("Enter the upload key to delete designs:") || "";
-      if (!key) return null;
-      localStorage.setItem("uploadKey", key);
-    }
-    return key;
-  }
-  // design_id/url data isn't in window.CATALOG_FILES (that's names only) —
-  // fetch it directly so thumbnails point at a URL that actually exists.
-  const thumbById = {}; // stem(name) -> real image url
-  async function loadThumbUrls() {
-    let page = 1, total = Infinity, all = [];
-    do {
-      const r = await fetch(`${ORIGIN}/api/designs?format=pages&limit=100&page=${page}`);
-      const d = await r.json();
-      all = all.concat(d.designs || []);
-      total = Number(d.total || all.length);
-      page++;
-    } while (all.length < total && page < 20);
-    all.forEach((d) => {
-      if (d.name) {
-        thumbById[stem(d.name)] = d.url;
-        designIdByStem[stem(d.name)] = d.design_id;
-      }
-    });
-  }
-  const thumbUrl = (f) => thumbById[stem(f)] || "";
+  const keyInput = document.getElementById("key");
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[character]);
+  keyInput.value = localStorage.getItem("uploadKey") || "";
+  keyInput.addEventListener("change", () => {
+    localStorage.setItem("uploadKey", keyInput.value.trim());
+    init();
+  });
+  let designs = [];
 
   function render() {
     grid.innerHTML = "";
     let done = 0;
-    const files = window.CATALOG_FILES || [];
-    files.forEach((f, i) => {
-      const item = stem(f);
-      const p = prices[item];
+    designs.forEach((design, i) => {
+      const item = design.name || design.design_id;
+      const elementId = design.design_id;
+      const p = design.price;
       if (p != null) done++;
       const card = document.createElement("div");
-      card.className = "card";
+      card.className = "card" + (design.active ? "" : " hidden-design");
       card.innerHTML =
-        '<div class="thumb"><span class="idx">#' + (i + 1) + '</span><img src="' + thumbUrl(f) + '" alt="" loading="lazy" decoding="async"></div>' +
+        '<div class="thumb"><span class="idx">#' + (i + 1) + '</span><img src="' + ORIGIN + '/api/designs?img=' + encodeURIComponent('designs/original/' + design.design_id + '.jpg') + '" alt="" loading="lazy" decoding="async"></div>' +
         '<div class="body">' +
-          '<div class="name">' + f + '</div>' +
-          '<div class="current ' + (p != null ? "" : "empty") + '" id="cur-' + item + '">' +
+          '<div class="name">' + escapeHtml(item) + '</div>' +
+          '<div class="current ' + (p != null ? "" : "empty") + '" id="cur-' + elementId + '">' +
             (p != null ? "₹ " + Number(p).toLocaleString("en-IN") : "— no price") +
           '</div>' +
           '<div class="row">' +
-            '<input id="inp-' + item + '" type="number" min="0" inputmode="numeric" placeholder="₹ price"' +
+            '<input id="inp-' + elementId + '" type="number" min="0" inputmode="numeric" placeholder="₹ price"' +
               (p != null ? ' value="' + p + '"' : "") + '>' +
-            '<button type="button" id="btn-' + item + '">' + (p != null ? "Update" : "Save") + "</button>" +
-          '</div>' +
-          '<button type="button" class="del" id="del-' + item + '">Delete</button>' +
-          '<div class="saved" id="msg-' + item + '"></div>' +
+            '<button type="button" id="btn-' + elementId + '">' + (p != null ? "Update" : "Save") + "</button>" +
+          "</div>" +
+          '<div class="saved" id="msg-' + elementId + '"></div>' +
+          '<div class="manage-row"><button type="button" class="visibility ' + (design.active ? '' : 'restore') + '">' + (design.active ? 'Hide design' : 'Restore design') + '</button></div>' +
         "</div>";
       grid.appendChild(card);
       const input = card.querySelector("input");
-      const btn = card.querySelector(".row button");
-      const delBtn = card.querySelector(".del");
+      const btn = card.querySelector("button");
       const msg = card.querySelector(".saved");
+      const visibility = card.querySelector(".visibility");
       btn.addEventListener("click", async () => {
         const raw = input.value.trim();
         const price = raw === "" ? null : Number(raw);
@@ -299,14 +278,14 @@
         }
         btn.disabled = true;
         try {
-          const r = await fetch(API, {
+          const r = await fetch(PRICE_API, {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: { "content-type": "application/json", "x-upload-key": keyInput.value.trim() },
             body: JSON.stringify({ itemId: item, price }),
           });
           const d = await r.json();
           if (d.ok) {
-            if (price == null) delete prices[item]; else prices[item] = price;
+            design.price = price;
             const cur = card.querySelector(".current");
             cur.textContent = price != null ? "₹ " + Number(price).toLocaleString("en-IN") : "— no price";
             cur.classList.toggle("empty", price == null);
@@ -322,36 +301,23 @@
         }
         btn.disabled = false;
       });
-
-      // Delete (soft) — hides the design from the main + price catalogs.
-      delBtn.addEventListener("click", async () => {
-        const designId = designIdByStem[item];
-        if (!designId) {
-          msg.textContent = "Can't delete — id unknown";
-          return;
-        }
-        const key = await getUploadKey();
-        if (key == null) return; // user cancelled
-        if (!confirm("Delete " + f + " from the catalog?\n\nIt will disappear from the main + price catalogs. Images are kept and it can be restored later.")) return;
-        delBtn.disabled = true;
-        msg.textContent = "Deleting…";
+      visibility.addEventListener("click", async () => {
+        const nextActive = !Boolean(design.active);
+        visibility.disabled = true;
+        msg.textContent = nextActive ? "Restoring…" : "Hiding…";
         try {
-          const r = await fetch(DELETE_API + "?id=" + encodeURIComponent(designId) + "&key=" + encodeURIComponent(key), { method: "DELETE" });
-          const d = await r.json().catch(() => ({}));
-          if (r.ok && d.ok) {
-            card.remove();
-            delete prices[item];
-            const files = window.CATALOG_FILES;
-            const i = files.indexOf(f);
-            if (i !== -1) files.splice(i, 1);
-            updateStats();
-          } else {
-            msg.textContent = d.error || "Delete failed (" + r.status + ")";
-            delBtn.disabled = false;
-          }
-        } catch (e) {
-          msg.textContent = "Error — try again";
-          delBtn.disabled = false;
+          const response = await fetch(MANAGE_API, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-upload-key": keyInput.value.trim() },
+            body: JSON.stringify({ designId: design.design_id, active: nextActive }),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Update failed");
+          design.active = nextActive ? 1 : 0;
+          render();
+        } catch (error) {
+          msg.textContent = error.message || "Error — try again";
+          visibility.disabled = false;
         }
       });
     });
@@ -359,26 +325,28 @@
   }
 
   function updateStats() {
-    statTotal.textContent = (window.CATALOG_FILES || []).length;
-    statDone.textContent = Object.keys(prices).length;
+    statTotal.textContent = designs.length;
+    statDone.textContent = designs.filter((design) => design.price != null).length;
   }
 
   async function init() {
-    // Wait for the design list from /api/designs before rendering the grid.
-    await window.catalogReady;
+    const key = keyInput.value.trim();
+    if (!key) {
+      grid.innerHTML = '<div class="rule">Enter your admin access key to manage designs.</div>';
+      return;
+    }
     try {
-      const [priceResp] = await Promise.all([fetch(API), loadThumbUrls()]);
-      const d = await priceResp.json();
-      Object.assign(prices, d.prices || {});
-    } catch (e) { /* prices/thumbs will just be empty */ }
+      const response = await fetch(MANAGE_API, { headers: { "x-upload-key": key } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to load designs");
+      designs = data.designs || [];
+    } catch (error) {
+      grid.innerHTML = '<div class="rule">' + (error.message || "Unable to load designs") + '</div>';
+      return;
+    }
     render();
   }
-
-  if (window.CATALOG_LOADED) {
-    init();
-  } else {
-    window.addEventListener("catalog-ready", init, { once: true });
-  }
+  init();
 </script>
 </body>
 </html>

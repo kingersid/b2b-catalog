@@ -4,7 +4,7 @@
 //                            price = null removes the price.
 //   OPTIONS                  -> CORS preflight
 
-const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type" };
+const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type, x-upload-key" };
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -34,6 +34,16 @@ async function setPrice(env, itemId, price) {
   return { ok: true, itemId, price };
 }
 
+async function authorized(request, env) {
+  if (!env.UPLOAD_KEY) return false;
+  const given = new TextEncoder().encode(request.headers.get("x-upload-key") || "");
+  const expected = new TextEncoder().encode(env.UPLOAD_KEY);
+  if (given.byteLength !== expected.byteLength) return false;
+  let difference = 0;
+  for (let index = 0; index < given.byteLength; index++) difference |= given[index] ^ expected[index];
+  return difference === 0;
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
 
@@ -47,6 +57,7 @@ export async function onRequest(context) {
     }
 
     if (request.method === "POST") {
+      if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
       const body = await request.json().catch(() => ({}));
       const itemId = String(body?.itemId ?? "").trim().slice(0, 255);
       if (!itemId) return json({ error: "itemId required" }, 400);

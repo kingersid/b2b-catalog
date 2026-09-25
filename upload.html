@@ -127,7 +127,8 @@ $("go").onclick = async () => {
     
     const form = new FormData();
     form.append("key", key);
-    form.append("design", p.blob, p.name);
+    // The optimized blob is JPEG, so give the server a matching filename.
+    form.append("design", p.blob, p.name.replace(/\.[^.]+$/, "") + ".jpg");
 
     try {
       const resp = await fetch(API, { method: "POST", body: form });
