@@ -37,6 +37,7 @@ Hide   → Website removes item immediately → Meta removes it on its next refr
 | [Admin](https://chandni-catalog.pages.dev/admin) | Set prices and hide or restore designs |
 | [Meta feed](https://chandni-catalog.pages.dev/meta-feed) | Scheduled CSV source with placeholder prices |
 | [Dashboard](https://chandni-catalog.pages.dev/dashboard) | Catalog engagement analytics |
+| [Privacy policy](https://chandni-catalog.pages.dev/privacy) | Customer data and WhatsApp automation policy |
 
 ## Price Privacy
 
