@@ -3,6 +3,9 @@
 // included and hidden or unpriced designs are omitted.
 
 const ORIGIN = "https://chandni-catalog.pages.dev";
+// Meta requires a numeric price in product feeds. Use a fixed nominal value so
+// the private wholesale price stored in D1 is never disclosed to Meta.
+const META_PLACEHOLDER_PRICE = "1 INR";
 
 const csvCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
 
@@ -26,10 +29,10 @@ export async function onRequestGet({ env }) {
     const rows = results.map((design, index) => [
       design.design_id,
       `Chandni Silk Mills Design #${index + 1}`,
-      `Chandni Silk Mills textile design ${design.name}. Contact us for fabric details, availability and wholesale orders.`,
+      `Price on request. Chandni Silk Mills textile design ${design.name}. Contact us for current wholesale pricing, fabric details and availability.`,
       "available for order",
       "new",
-      `${design.price} INR`,
+      META_PLACEHOLDER_PRICE,
       `${ORIGIN}/share?id=${encodeURIComponent(design.design_id)}`,
       `${ORIGIN}/api/designs?img=${encodeURIComponent(`designs/original/${design.design_id}.jpg`)}`,
       "Chandni Silk Mills",
