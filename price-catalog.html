@@ -430,7 +430,7 @@
 
   // --- State ---
   const designs   = [];      // { design_id, name, url, midUrl, webpUrl }
-  const prices    = {};      // stem -> ₹ price (number)
+  const prices    = {};      // saved item key -> ₹ price (number)
   const slideEls  = [];      // parallel array of DOM slide elements
   let activeIdx   = 0;       // currently visible slide index (0 = first design)
   let totalDesigns = 0;
@@ -440,6 +440,18 @@
   const stem = (name) => name.replace(/\.[^.]+$/, "").toLowerCase();
   const formatINR = (n) => Number(n).toLocaleString("en-IN");
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
+
+  function priceFor(design) {
+    const name = String(design.name || "");
+    const id = String(design.design_id || "");
+    const exactStem = name.replace(/\.[^.]+$/, "");
+    const candidates = [id, name, exactStem, id.toLowerCase(), name.toLowerCase(), exactStem.toLowerCase()];
+
+    for (const key of candidates) {
+      if (key && Object.prototype.hasOwnProperty.call(prices, key)) return prices[key];
+    }
+    return null;
+  }
 
   function showToast(msg) {
     $toast.textContent = msg;
@@ -524,7 +536,7 @@
     // Price pill
     const pill = document.createElement("span");
     pill.className = "price-pill";
-    const p = prices[stem(design.name)];
+    const p = priceFor(design);
     if (p != null) {
       pill.innerHTML = '<span class="rs">₹</span> ' + formatINR(p);
     } else {
@@ -630,7 +642,7 @@
     const design = designs[activeIdx];
     if (!design) return;
     const s = stem(design.name);
-    const p = prices[s];
+    const p = priceFor(design);
     const priceTxt = p != null ? " (₹" + formatINR(p) + ")" : "";
     const designId = design.design_id || design.name.replace(/\.[^.]+$/, "");
     const shareLink = ORIGIN + "/share?id=" + encodeURIComponent(designId);
