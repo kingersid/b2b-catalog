@@ -5,6 +5,9 @@
   "compatibility_date": "2026-09-26",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "secrets": {
+    "required": ["META_VERIFY_TOKEN", "META_APP_SECRET", "META_ACCESS_TOKEN", "OPENAI_API_KEY", "AGENT_ADMIN_KEY"]
+  },
   "vars": {
     "PHONE_NUMBER_ID": "1329088423615686",
     "WABA_ID": "2150197029173188",

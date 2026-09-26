@@ -4,7 +4,7 @@ The Worker is deployed at `https://chandni-whatsapp-agent.kinger-siddharth.worke
 
 ## Add five secrets
 
-In [Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages), open **chandni-whatsapp-agent → Settings → Variables and Secrets → Add**. Select **Secret** for each item. Enter the exact name shown below, paste its value, then deploy the settings. Secret values are hidden after saving. Do not put any of them in Git, `wrangler.jsonc`, or chat.
+In [Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages), open **chandni-whatsapp-agent → Settings → Runtime variables and secrets → Add variable**. For every row, select the **Secret** checkbox before deploying. After saving, confirm the **Type** column says `Secret` and the value is hidden. If the Type says `Variable` and the value is readable, delete that row and replace its value with a newly issued credential. Do not copy Cloudflare's generated `vars` snippet into Git, `wrangler.jsonc`, or chat.
 
 | Secret name | Where to get its value |
 |---|---|

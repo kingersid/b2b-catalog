@@ -12,6 +12,9 @@ data-backup-*.json
 
 # Local dev secrets
 .dev.vars
+.dev.vars.*
+.env
+.env.*
 wa-worker/.dry-run/
 wa-worker/**/.dry-run/
 .pages-dist/
