@@ -5,7 +5,7 @@
     "add:gphotos": "node scripts/add-from-gphotos.mjs",
     "check:portrait": "node scripts/check-portrait.mjs",
     "dev": "npx wrangler pages dev . --d1 CATALOG_DB=chandni-catalog",
-    "deploy": "node scripts/check-portrait.mjs && npx wrangler pages deploy . --project-name=chandni-catalog",
+    "deploy": "node scripts/check-portrait.mjs && node scripts/stage-pages.mjs && npx wrangler pages deploy .pages-dist --project-name=chandni-catalog",
     "deploy:prod": "npm run deploy"
   },
   "dependencies": {

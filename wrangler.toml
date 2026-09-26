@@ -6,7 +6,7 @@
 
 name = "chandni-catalog"
 compatibility_date = "2024-11-01"
-pages_build_output_dir = "."
+pages_build_output_dir = ".pages-dist"
 
 [[d1_databases]]
 binding = "CATALOG_DB"

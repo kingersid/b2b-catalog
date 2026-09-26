@@ -28,9 +28,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stage public site files
+        run: node scripts/stage-pages.mjs
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=chandni-catalog --branch=${{ github.head_ref || github.ref_name }}
+          command: pages deploy .pages-dist --project-name=chandni-catalog --branch=${{ github.head_ref || github.ref_name }}
