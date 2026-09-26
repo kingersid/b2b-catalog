@@ -5,7 +5,7 @@ export const ADMIN_HTML = `<!doctype html>
 </style></head><body>
 <h1>WhatsApp operator inbox</h1><p>Enter the agent admin key to see handoffs and messages that need review. This page refreshes every 15 seconds while open.</p>
 <label>Admin key <input id="key" type="password" autocomplete="off"></label> <button id="connect">Connect</button><p id="status"></p>
-<button id="self-test" disabled>Test OpenAI and Meta connections</button><p id="test-result"></p>
+<button id="self-test" disabled>Test Kimi and Meta connections</button><p id="test-result"></p>
 <section><h2>Human handoffs <span id="handoff-count"></span></h2><div id="handoffs"></div></section>
 <section><h2>Needs review <span id="review-count"></span></h2><div id="review"></div></section>
 <script>
@@ -40,19 +40,26 @@ async function refresh() {
     el('review').replaceChildren();
     for (const item of review.messages) {
       const card = document.createElement('article');
-      card.append(node('strong', '+' + item.wa_id + ' · ' + item.status), node('p', item.body || ''), node('small', item.last_error || 'Send may have started; check Graph before retrying.')));
+      card.append(node('strong', '+' + item.wa_id + ' · ' + item.status), node('p', item.body || ''), node('small', item.last_error || 'Send may have started; check Graph before retrying.'));
       el('review').append(card);
     }
     if (!review.messages.length) el('review').append(node('p', 'No messages need review.'));
   } catch (error) { el('status').textContent = error.message; el('status').className = 'error'; }
 }
-el('connect').onclick = () => { key = el('key').value; el('key').value = ''; refresh(); };
+el('connect').onclick = () => {
+  key = el('key').value.trim();
+  el('key').value = '';
+  if (!key) { el('status').textContent = 'Enter the admin key first.'; el('status').className = 'error'; return; }
+  el('status').textContent = 'Connecting...';
+  el('status').className = '';
+  refresh();
+};
 el('self-test').onclick = async () => {
   el('self-test').disabled = true;
   el('test-result').textContent = 'Checking connections...';
   try {
     const result = await api('/admin/self-test', { method: 'POST' });
-    el('test-result').textContent = 'Catalog: ' + result.catalog.pricedDesigns + ' priced designs · OpenAI: ' + (result.openai.ok ? 'ready' : result.openai.error) + ' · Meta: ' + (result.meta.ok ? 'production phone accessible' : result.meta.error);
+    el('test-result').textContent = 'Catalog: ' + result.catalog.pricedDesigns + ' priced designs · Kimi: ' + (result.kimi.ok ? 'ready' : result.kimi.error) + ' · Meta: ' + (result.meta.ok ? 'production phone accessible' : result.meta.error);
   } catch (error) { el('test-result').textContent = error.message; }
   el('self-test').disabled = false;
 };

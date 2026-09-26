@@ -1,10 +1,10 @@
 # WhatsApp sales agent: Cloudflare Worker implementation plan
 
-**Status:** Worker deployed on 27 September 2026 at `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev`; production D1 tables are installed, health and D1 connectivity verified. Secrets and live Meta webhook cutover remain pending. The published n8n workflow remains the production handler.
+**Status:** Worker deployed at `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev`; production D1 tables, health, D1 connectivity, and the required Worker secrets are in place. The model provider has been switched to Kimi K2.6 for low-cost testing. The live Meta webhook cutover remains pending; the published n8n workflow remains the production handler.
 
 ## Goal
 
-Move the WhatsApp webhook and sales replies from n8n Cloud to a separate Cloudflare Worker. Use the existing catalog's production D1 database for active designs and saved rates, and use the OpenAI Responses API to interpret buyer messages. Keep Cloudflare usage within its free tier for as long as traffic permits. OpenAI API usage and any chargeable Meta template messages are separate costs.
+Move the WhatsApp webhook and sales replies from n8n Cloud to a separate Cloudflare Worker. Use the existing catalog's production D1 database for active designs and saved rates, and use Kimi's Chat Completions API to interpret buyer messages. Keep Cloudflare usage within its free tier for as long as traffic permits. Kimi API usage and any chargeable Meta template messages are separate costs.
 
 ## Scope for the first live release
 
@@ -25,7 +25,7 @@ Customer WhatsApp message
        INSERT OR IGNORE message in D1; return HTTP 200
   -> background processing + one-minute retry sweep
        load conversation state and active priced designs from D1
-       OpenAI Responses API: structured intent + design IDs
+       Kimi Chat Completions API: JSON intent + design IDs
        validate IDs; attach rates and share/image URLs in code
        send through Graph API; record result in D1
   -> operator review/handoff when needed
@@ -53,10 +53,10 @@ Use a plain Worker, D1 binding, and Cron Trigger initially. This avoids a paid n
 - [ ] Define retention and removal for stored customer message text and conversation records.
 - [x] Route unsupported image, audio, and document messages to human handoff.
 
-### 3. Connect OpenAI and the catalog safely
+### 3. Connect Kimi and the catalog safely
 
-- [x] Use `gpt-5.6-terra` with low reasoning effort as the first model setting; measure answer quality, latency, and token cost before changing it.
-- [x] Request a strict JSON decision from the Responses API with `store: false` and bounded output.
+- [x] Use `kimi-k2.6` with thinking disabled for low-cost testing; measure answer quality, latency, and token cost before changing it.
+- [x] Request a JSON decision from the Chat Completions API with bounded output; validate actions and design IDs in Worker code.
 - [x] Supply only recent message context and active catalog IDs/names to the model. Keep the WhatsApp number and saved rates out of the model request.
 - [x] Recheck chosen IDs against current D1 results and attach the real rate in Worker code. Continue to keep the Meta Commerce feed at its fixed `1 INR` placeholder.
 - [ ] Evaluate at least 25 anonymized buyer messages across English, Hindi/Hinglish, Gujarati, specific designs, vague requests, human requests, and prompt injection. Check that replies never invent price, stock, material, or dispatch terms.
@@ -66,15 +66,15 @@ Use a plain Worker, D1 binding, and Cron Trigger initially. This avoids a paid n
 
 - [x] Run local checks for signature verification and validation of model-selected design IDs.
 - [ ] Validate Wrangler configuration and run the Worker locally with a local D1 copy and non-production test secrets.
-- [ ] Test webhook GET verification, valid and invalid HMAC signatures, duplicate deliveries, wrong WABA/phone IDs, missing secrets, OpenAI timeout, malformed model response, D1 failure, and Graph rejection.
+- [ ] Test webhook GET verification, valid and invalid HMAC signatures, duplicate deliveries, wrong WABA/phone IDs, missing secrets, Kimi timeout, malformed model response, D1 failure, and Graph rejection.
 - [ ] Test a full signed inbound event on a Meta test number or isolated test app, including the outgoing reply and recorded D1 status.
 - [x] Stage an allowlisted Pages asset directory so Worker source, agent schema, and local test data are not included in future catalog deploys.
 
 ### 5. Deploy and cut over
 
 - [x] Apply `wa-worker/schema.sql` to production D1 after the backup; verify both new tables exist and the catalog still has 61 designs.
-- [x] Deploy the Worker as a separate `workers.dev` service. The five secrets still need to be entered securely by the account owner; see `wa-worker/SETUP.md`.
-- [x] Confirm `/health` and the D1 binding on the deployed Worker. Webhook verification and the protected operator endpoints await secrets.
+- [x] Deploy the Worker as a separate `workers.dev` service and configure the five required secrets; see `wa-worker/SETUP.md`.
+- [x] Confirm `/health`, D1 binding, webhook verification, and protected operator endpoints on the deployed Worker.
 - [ ] Add an operator alert and verify a human can claim and resume a conversation before live cutover.
 - [ ] Change the Meta app's `messages` callback to the Worker URL. Send a live message to `+91 83201 29806`; verify exactly one correct reply, execution record, and no new n8n production execution.
 - [ ] Keep the n8n workflow and callback details available for rollback until live traffic is stable. Do not run two reply handlers for the same incoming message.
@@ -82,7 +82,7 @@ Use a plain Worker, D1 binding, and Cron Trigger initially. This avoids a paid n
 ### 6. Operate and measure
 
 - [ ] Monitor webhook acceptance, signature failures, pending age, `needs_review` records, Graph errors, model errors, handoff age, and daily reply count.
-- [ ] Review Cloudflare Worker requests and D1 rows read/written, plus OpenAI tokens and spend, weekly.
+- [ ] Review Cloudflare Worker requests and D1 rows read/written, plus Kimi tokens and spend, weekly.
 - [ ] Establish a simple rollback: restore Meta's previous n8n callback and confirm a test reply. Keep message-ID deduplication in mind during any switch.
 - [ ] Only cancel n8n Cloud after the Worker has handled representative live traffic and operator handoff works.
 
@@ -93,12 +93,12 @@ The Worker is ready to become the production webhook only when all of these are 
 1. Meta verification and signed webhook tests pass on the deployed URL.
 2. A duplicate inbound message yields one reply; wrong WABA/phone events yield none.
 3. Every product reply references an active design and its positive saved D1 rate; no saved rate enters `/meta-feed`.
-4. OpenAI or catalog failure produces a tracked retry or review item, and an uncertain Graph send is never retried automatically.
+4. Kimi or catalog failure produces a tracked retry or review item, and an uncertain Graph send is never retried automatically.
 5. A handoff alerts a person, mutes the bot, and can be resumed deliberately.
 6. A real customer message receives one correct reply after cutover, and the previous n8n callback can be restored quickly.
 
 ## Cost boundary
 
-Cloudflare currently lists **100,000 Worker requests per day** on the free plan, with a **10 ms CPU time limit per invocation**; D1 lists **5 million rows read and 100,000 rows written per day**, with 5 GB of storage on the free plan. These are account-level limits and can change. The Worker should stay small and measure actual usage. OpenAI charges per token even while Cloudflare remains free. Meta may charge for approved template messages outside the customer service window.
+Cloudflare currently lists **100,000 Worker requests per day** on the free plan, with a **10 ms CPU time limit per invocation**; D1 lists **5 million rows read and 100,000 rows written per day**, with 5 GB of storage on the free plan. These are account-level limits and can change. The Worker should stay small and measure actual usage. Kimi charges per token even while Cloudflare remains free. Meta may charge for approved template messages outside the customer service window.
 
-Sources: [Cloudflare Worker pricing](https://developers.cloudflare.com/workers/platform/pricing/), [Cloudflare D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra).
+Sources: [Cloudflare Worker pricing](https://developers.cloudflare.com/workers/platform/pricing/), [Cloudflare D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [Kimi JSON mode](https://platform.kimi.ai/docs/guide/use-json-mode-feature-of-kimi-api), [Kimi K2.6](https://platform.kimi.ai/docs/guide/kimi-k2-6-quickstart).
