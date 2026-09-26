@@ -437,7 +437,8 @@
   let allLoaded   = false;
 
   // --- Helpers ---
-  const stem = (name) => name.replace(/\.[^.]+$/, "").toLowerCase();
+  // Match the exact item ID used when admin.html saves prices.
+  const stem = (name) => name.replace(/\.[^.]+$/, "");
   const formatINR = (n) => Number(n).toLocaleString("en-IN");
   const maxScroll = () => document.documentElement.scrollHeight - window.innerHeight;
 

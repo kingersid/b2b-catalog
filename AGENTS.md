@@ -43,6 +43,111 @@ Website and Meta feed stop listing it
 - A saved positive price is still the publication gate for Meta, even though its value is replaced in the feed.
 - Test feed changes by confirming every product row has the placeholder and that no known real price appears.
 
+## WhatsApp AI Agent and Meta Commerce
+
+The catalog is also the product source for a basic WhatsApp agent hosted in n8n.
+The agent is live and answers inbound messages sent to the Cloud API number.
+
+### Live services and identifiers
+
+| Component | Value |
+|-----------|-------|
+| Meta business portfolio | `Surat B2B fabrics` (`1492873895898728`) |
+| Meta app | `wa-crm` (`1084450467911931`) |
+| Production WABA | `Surat B2B fabrics` (`2150197029173188`) |
+| Production phone | `+91 83201 29806` |
+| Production phone number ID | `1329088423615686` |
+| Customer-facing catalog number | `+91 95370 97267` |
+| Chandni Silk Mills WABA | `2691198751280146` |
+| Chandni phone number ID | `1163857800141427` |
+| Meta system user | `cli-bot` (`61591111234154`) |
+| n8n instance | `https://b2bsuratfab.app.n8n.cloud` |
+| n8n project | `HWSijHlR7KWzFqUu` |
+| n8n workflow | `WhatsApp Catalog Agent - Designs with Rates` (`pHwtP2qmCM2R4geC`) |
+| Production webhook | `https://b2bsuratfab.app.n8n.cloud/webhook/whatsapp-catalog-agent` |
+| Meta catalog | `1787767012276178` |
+
+The production phone and WABA IDs must remain aligned. An inbound webhook includes
+`entry[0].id = 2150197029173188` and
+`metadata.phone_number_id = 1329088423615686`. Use these values when diagnosing
+authorization failures; several similarly named legacy/test WABAs exist in the
+business portfolio.
+
+### Working message flow
+
+1. A customer sends a message to `+91 83201 29806`.
+2. Meta sends the `messages` webhook event to the n8n production webhook.
+3. `Parse Message` extracts the customer's WhatsApp ID and text.
+4. n8n fetches active designs from
+   `/api/designs?format=full&limit=100&page=1`.
+5. n8n fetches private prices from `/prices`.
+6. `Prepare Catalog Replies` builds a greeting or up to three image replies with
+   the design rate and public `/share?id=...` link.
+7. `Send WhatsApp Reply` posts each payload to
+   `https://graph.facebook.com/v21.0/1329088423615686/messages` using the n8n
+   `Bearer Auth account` credential.
+
+Recognized customer intent currently includes messages such as `hi`, `design`,
+`catalog`, `rate`, and `price`. The basic agent sends the latest available designs
+with their private rates. It is a deterministic n8n workflow, not yet a general
+LLM-based sales agent.
+
+### Required Meta access
+
+`cli-bot` must have full access to all three of these assets:
+
+- App `wa-crm` (`1084450467911931`)
+- Production WABA `Surat B2B fabrics` (`2150197029173188`)
+- Any catalog/WABA used for future product-message features
+
+The n8n Bearer credential uses a non-expiring Meta system-user token with
+`whatsapp_business_management` and `whatsapp_business_messaging`. Never commit,
+log, paste into documentation, or display this token. Rotate it in Meta Business
+Settings and replace the n8n credential if it is exposed or revoked.
+
+### Meta catalog synchronization
+
+The intended operating flow is:
+
+```text
+Upload design -> set private rate -> catalog and WhatsApp agent update
+Hide design   -> remove it from the public catalog and Meta feed
+```
+
+`GET /meta-feed` is the live CSV source for Meta Commerce. It reads production D1,
+includes only active designs with a positive price, and omits hidden/unpriced
+designs. Meta must be configured to fetch this URL on a recurring **replace**
+schedule so removed rows disappear from Meta.
+
+**Price privacy:** `functions/meta-feed.js` exports a fixed numeric placeholder
+(`1 INR`) because Meta Commerce requires a numeric price and does not accept
+`xxx`. The real rate remains in D1 and is read by the WhatsApp agent from
+`/prices`.
+
+### WhatsApp troubleshooting
+
+Check n8n Executions first. Each customer message should create one production
+execution.
+
+| Symptom | Meaning and fix |
+|---------|-----------------|
+| No new execution | Meta webhook subscription, callback URL, or published workflow is wrong |
+| `Authorization failed` / OAuth code 190 | Bearer token expired or was revoked; create a new non-expiring system-user token and update n8n |
+| HTTP 400 `Authorization Error`, code 100 | Token is valid but the system user lacks access to the WABA owning the phone number ID |
+| Execution succeeds but customer receives nothing | Inspect the Graph response, recipient `to`, phone number status, and the 24-hour conversation window |
+
+Confirmed recovery on 2026-09-26:
+
+1. The temporary Meta token had expired.
+2. A permanent `cli-bot` token was generated and stored in n8n.
+3. The first retry still returned code 100 because `cli-bot` had access to two
+   other WABAs, not production WABA `2150197029173188`.
+4. Full access to WABA `2150197029173188` was assigned to `cli-bot`.
+5. The next live customer message received a successful reply.
+
+Do not confuse the production WABA with the test account or the other similarly
+named WABAs in Meta Business Manager. Use the IDs above, not display names.
+
 ## Architecture
 
 ```

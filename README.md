@@ -319,6 +319,88 @@ Prices are stored in the `prices` table (D1). A design with no price shows
 The Meta feed uses the saved positive price only as a publication gate and replaces
 its value with the fixed `1 INR` placeholder.
 
+## WhatsApp catalog agent
+
+A basic production agent runs in n8n and replies to customer messages with current
+designs, rates, and share links.
+
+### Live configuration
+
+| Component | Value |
+|-----------|-------|
+| WhatsApp Cloud API number | `+91 83201 29806` |
+| Meta app | `wa-crm` (`1084450467911931`) |
+| Production WABA | `2150197029173188` |
+| Phone number ID | `1329088423615686` |
+| n8n workflow | `WhatsApp Catalog Agent - Designs with Rates` |
+| Workflow ID | `pHwtP2qmCM2R4geC` |
+| Webhook | `https://b2bsuratfab.app.n8n.cloud/webhook/whatsapp-catalog-agent` |
+
+### Customer flow
+
+1. The customer sends `hi`, `design`, `catalog`, `rate`, or `price`.
+2. Meta delivers the message to the n8n webhook.
+3. n8n loads active designs from `/api/designs?format=full` and rates from
+   `/prices`.
+4. It replies with a greeting or up to three design images, each with its rate and
+   public share link.
+
+The workflow uses a permanent Meta system-user token stored in the n8n credential
+named `Bearer Auth account`. The token is deliberately absent from this repository.
+Do not add tokens, OTPs, webhook verification secrets, or n8n credentials to Git.
+
+### Meta permissions that must remain in place
+
+System user `cli-bot` (`61591111234154`) needs full access to:
+
+- App `wa-crm` (`1084450467911931`)
+- Production WABA `Surat B2B fabrics` (`2150197029173188`)
+
+The token requires `whatsapp_business_management` and
+`whatsapp_business_messaging`. A valid token without access to the production WABA
+causes Meta to return HTTP 400 `Authorization Error` with code 100.
+
+### Troubleshooting
+
+- **No n8n execution:** check the Meta `messages` webhook subscription and that the
+  workflow is published.
+- **OAuth code 190:** the token expired or was revoked; generate another permanent
+  system-user token and replace the n8n Bearer credential.
+- **HTTP 400, code 100:** confirm the system user has access to WABA
+  `2150197029173188`; similarly named WABAs are present in the portfolio.
+- **Message arrives but reply is missing:** inspect the newest n8n execution and
+  expand the `Send WhatsApp Reply` error details.
+
+## Meta Commerce catalog feed
+
+Meta Commerce can fetch the live CSV at:
+
+```text
+https://chandni-catalog.pages.dev/meta-feed
+```
+
+Configure Commerce Manager to fetch it on a recurring **replace** schedule. The
+feed includes active, priced designs only. Therefore:
+
+```text
+Upload design -> set price -> appears in the website catalog and Meta feed
+Hide design   -> disappears from the website catalog and the next Meta replacement
+```
+
+The feed keeps real rates in D1 and WhatsApp while sending the numeric placeholder
+`1 INR` and the label `Price on request` to Meta. Meta requires a numeric currency
+price, so literal `xxx` is not a valid feed value. A positive saved rate remains
+the publication gate, but its value is never written to the Meta feed.
+
+The one-time CSV generator remains available as:
+
+```bash
+node scripts/build-meta-feed.mjs
+```
+
+Production synchronization should use `/meta-feed`; `meta-catalog-import.csv` is a
+snapshot and will become stale.
+
 ## Viewing counter / hearts data
 
 ```bash
