@@ -19,7 +19,7 @@ Cloudflare's [secret setup guide](https://developers.cloudflare.com/workers/conf
 ## Check before switching the live number
 
 1. Open [health](https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/health) and confirm `ok: true` and `database: connected`.
-2. Open the [operator inbox](https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/admin), enter `AGENT_ADMIN_KEY`, and confirm it connects. Keep this page monitored for handoffs and failed sends.
+2. Open the [operator inbox](https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/admin), enter `AGENT_ADMIN_KEY`, and confirm it connects. Click **Test OpenAI and Meta connections**; both services should report ready. Keep this page monitored for handoffs and failed sends.
 3. In the **wa-crm** app, open **WhatsApp → Configuration → Webhook**. At cutover, set **Callback URL** to `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/webhook` and **Verify token** to `META_VERIFY_TOKEN`. Verify and save. Ensure the `messages` field is subscribed.
 4. Send `hi` to production WhatsApp number `+91 83201 29806` from a customer phone. Check that exactly one reply arrives and that the Worker inbox record is `done`. Then ask a specific design question to exercise OpenAI. Check a human request reaches `/admin`.
 5. If no correct reply arrives, restore the prior n8n callback `https://b2bsuratfab.app.n8n.cloud/webhook/whatsapp-catalog-agent` immediately. Do not leave two reply handlers active.

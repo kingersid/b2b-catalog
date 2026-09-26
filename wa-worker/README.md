@@ -15,6 +15,7 @@ The OpenAI model is `gpt-5.6-terra` with low reasoning effort. OpenAI API usage 
 ## Operations
 
 - Open `/admin` in a browser and enter `AGENT_ADMIN_KEY` to watch handoffs and send failures. The key stays in page memory and must be entered again after reload.
+- After connecting, click **Test OpenAI and Meta connections**. It checks the current catalog, asks OpenAI for a sample decision, and confirms the Meta token can see the production phone. It does not send a WhatsApp message.
 - `GET /admin/handoffs` with header `x-agent-admin-key` lists conversations awaiting a person. Check this list regularly; the Worker does not yet send an operator alert.
 - `GET /admin/review` with the same header lists messages that need send or processing review.
 - `POST /admin/resume` with the same header and JSON `{ "waId": "91..." }` returns a human-held conversation to bot mode.

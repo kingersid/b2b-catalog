@@ -267,6 +267,32 @@ async function admin(request, env) {
     return response({ error: 'Unauthorized' }, 401);
   }
   const url = new URL(request.url);
+  if (request.method === 'POST' && url.pathname === '/admin/self-test') {
+    const designs = await catalog(env);
+    const checks = await Promise.allSettled([
+      decide(env, 'Show me the latest designs', designs.slice(0, 3), []),
+      (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const result = await fetch(`https://graph.facebook.com/v21.0/${env.WABA_ID}/phone_numbers`, {
+            signal: controller.signal,
+            headers: { authorization: `Bearer ${env.META_ACCESS_TOKEN}` }
+          });
+          if (!result.ok) throw new Error(`Graph HTTP ${result.status}`);
+          const data = JSON.parse(await readLimited(result.body, 16384));
+          if (!data.data?.some(phone => String(phone.id) === env.PHONE_NUMBER_ID)) {
+            throw new Error('Production phone is not visible to this token');
+          }
+          return true;
+        } finally { clearTimeout(timeout); }
+      })()
+    ]);
+    const summary = checks.map(check => check.status === 'fulfilled'
+      ? { ok: true }
+      : { ok: false, error: String(check.reason?.message || 'Connection failed').slice(0, 100) });
+    return response({ catalog: { ok: true, pricedDesigns: designs.length }, openai: summary[0], meta: summary[1] });
+  }
   if (request.method === 'GET' && url.pathname === '/admin/handoffs') {
     const { results } = await env.CATALOG_DB.prepare(
       "SELECT c.wa_id, c.mode, c.updated_at, i.body AS latest_message FROM wa_conversations c LEFT JOIN wa_inbox i ON i.message_id = (SELECT message_id FROM wa_inbox WHERE wa_id = c.wa_id ORDER BY received_at DESC LIMIT 1) WHERE c.mode = 'human' ORDER BY c.updated_at DESC LIMIT 50"

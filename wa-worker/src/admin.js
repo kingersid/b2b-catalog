@@ -5,6 +5,7 @@ export const ADMIN_HTML = `<!doctype html>
 </style></head><body>
 <h1>WhatsApp operator inbox</h1><p>Enter the agent admin key to see handoffs and messages that need review. This page refreshes every 15 seconds while open.</p>
 <label>Admin key <input id="key" type="password" autocomplete="off"></label> <button id="connect">Connect</button><p id="status"></p>
+<button id="self-test" disabled>Test OpenAI and Meta connections</button><p id="test-result"></p>
 <section><h2>Human handoffs <span id="handoff-count"></span></h2><div id="handoffs"></div></section>
 <section><h2>Needs review <span id="review-count"></span></h2><div id="review"></div></section>
 <script>
@@ -22,6 +23,7 @@ async function refresh() {
     const [handoffs, review] = await Promise.all([api('/admin/handoffs'), api('/admin/review')]);
     el('status').textContent = 'Connected · last checked ' + new Date().toLocaleTimeString();
     el('status').className = '';
+    el('self-test').disabled = false;
     el('handoff-count').textContent = '(' + handoffs.handoffs.length + ')';
     el('review-count').textContent = '(' + review.messages.length + ')';
     document.title = (handoffs.handoffs.length + review.messages.length ? '● ' : '') + 'Chandni WhatsApp inbox';
@@ -45,5 +47,14 @@ async function refresh() {
   } catch (error) { el('status').textContent = error.message; el('status').className = 'error'; }
 }
 el('connect').onclick = () => { key = el('key').value; el('key').value = ''; refresh(); };
+el('self-test').onclick = async () => {
+  el('self-test').disabled = true;
+  el('test-result').textContent = 'Checking connections...';
+  try {
+    const result = await api('/admin/self-test', { method: 'POST' });
+    el('test-result').textContent = 'Catalog: ' + result.catalog.pricedDesigns + ' priced designs · OpenAI: ' + (result.openai.ok ? 'ready' : result.openai.error) + ' · Meta: ' + (result.meta.ok ? 'production phone accessible' : result.meta.error);
+  } catch (error) { el('test-result').textContent = error.message; }
+  el('self-test').disabled = false;
+};
 setInterval(refresh, 15000);
 </script></body></html>`;
