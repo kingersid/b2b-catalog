@@ -33,10 +33,14 @@ export async function onRequestGet({ request, env }) {
   if (!(await authorized(request, env))) return json({ error: "Unauthorized" }, 401);
   const { results } = await env.CATALOG_DB.prepare(
     `SELECT d.design_id, d.name, d.sort_order, d.created_at, d.active,
-            COALESCE(p_name.price, p_id.price) AS price
+            COALESCE(p_name.price, p_id.price) AS price,
+            m.title, m.fabric_type, m.pattern, m.colors, m.use_cases,
+            m.composition, m.width_cm, m.moq_meters, m.availability,
+            m.keywords, m.updated_at AS metadata_updated_at
        FROM designs d
        LEFT JOIN prices p_name ON p_name.item_id = d.name
        LEFT JOIN prices p_id ON p_id.item_id = d.design_id
+       LEFT JOIN design_metadata m ON m.design_id = d.design_id
       ORDER BY d.active DESC, d.sort_order DESC, d.created_at DESC`
   ).all();
   return json({ designs: results });

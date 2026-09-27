@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, webcrypto } from 'node:crypto';
 import test from 'node:test';
-import worker, { verifySignature, payloadsFor, basicDecision, kimiFailure, decide, qualifiesB2B, mergeB2B, sanitizeReply } from './index.js';
+import worker, { verifySignature, payloadsFor, basicDecision, kimiFailure, decide, qualifiesB2B, mergeB2B, sanitizeReply, downloadCustomerMedia, interpretInboundMedia } from './index.js';
 
 globalThis.crypto ||= webcrypto;
 
@@ -91,7 +91,7 @@ test('simple messages avoid a model call', () => {
 });
 
 test('Kimi persona request carries profile, designs, and history', async () => {
-  const designs = [{ id: 'live', name: 'Live.jpg' }];
+  const designs = [{ id: 'live', name: 'Blue Silk', fabric_type: 'silk blend', colors: 'blue', use_cases: 'saree', availability: 'available', rate: 950 }];
   const history = [{ buyer: 'hi', assistant: 'Welcome!' }];
   const profile = { customer_name: 'Ramesh', city: 'Rajkot', b2b: 'yes' };
   const decision = await decide({ KIMI_API_KEY: 'test-key', KIMI_MODEL: 'kimi-k2.6' }, 'silk dikhao', designs, history, profile, async (url, options) => {
@@ -105,7 +105,10 @@ test('Kimi persona request carries profile, designs, and history', async () => {
     assert.equal(user.profile.known_name, 'Ramesh');
     assert.equal(user.profile.known_city, 'Rajkot');
     assert.equal(user.profile.price_eligible, true);
-    assert.deepEqual(user.designs, [{ id: 'live', name: 'Live.jpg' }]);
+    assert.equal(user.designs[0].fabric_type, 'silk blend');
+    assert.equal(user.designs[0].colors, 'blue');
+    assert.equal(user.designs[0].use_cases, 'saree');
+    assert.equal(user.designs[0].rate, undefined, 'real rate must stay out of the model request');
     assert.deepEqual(user.history, history);
     assert.match(body.messages[0].content, /NEVER state.*price|wholesale rates are shared with shop owners/);
     return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
@@ -116,6 +119,63 @@ test('Kimi persona request carries profile, designs, and history', async () => {
   assert.equal(decision.reply, 'नमस्ते Ramesh जी! 😊 ये designs देखिए।');
   assert.deepEqual(decision.design_ids, ['live']);
   assert.equal(decision.profile.b2b, 'yes');
+});
+
+test('photo input reaches Kimi as vision content without opening the price gate', async () => {
+  await decide({ KIMI_API_KEY: 'test-key' }, 'Find a similar pattern', [], [], { b2b: 'unknown' }, async (_url, options) => {
+    const parts = JSON.parse(options.body).messages[1].content;
+    assert.equal(parts[0].type, 'text');
+    assert.equal(JSON.parse(parts[0].text).profile.price_eligible, false);
+    assert.equal(parts[1].type, 'image_url');
+    assert.equal(parts[1].image_url.url, 'data:image/jpeg;base64,AQID');
+    return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
+      reply: 'What colour would you prefer?', design_ids: [], handoff: false, optout: false, community: false
+    }) } }] }));
+  }, { mime: 'image/jpeg', base64: 'AQID' }, '');
+});
+
+test('Meta media retrieval checks type, size, and download host', async () => {
+  const mediaEnv = { META_ACCESS_TOKEN: 'test-token', PHONE_NUMBER_ID: '123' };
+  const calls = [];
+  const result = await downloadCustomerMedia(mediaEnv, '123456789', 'image', async (url) => {
+    calls.push(url);
+    if (calls.length === 1) return new Response(JSON.stringify({
+      mime_type: 'image/jpeg', file_size: 3, url: 'https://lookaside.fbsbx.com/media/example'
+    }));
+    return new Response(new Uint8Array([1, 2, 3]));
+  });
+  assert.equal(result.mime, 'image/jpeg');
+  assert.deepEqual([...result.bytes], [1, 2, 3]);
+  assert.equal(calls.length, 2);
+  await assert.rejects(() => downloadCustomerMedia(mediaEnv, '123456789', 'image', async () =>
+    new Response(JSON.stringify({ mime_type: 'image/jpeg', url: 'https://evil.example/steal' }))), /Unexpected Meta media URL/);
+  await assert.rejects(() => downloadCustomerMedia(mediaEnv, '123456789', 'image', async () =>
+    new Response(JSON.stringify({ mime_type: 'image/jpeg', file_size: 6000000, url: 'https://lookaside.fbsbx.com/x' }))), /too large/);
+});
+
+test('voice note is transcribed without itself qualifying the buyer for prices', async () => {
+  const aiCalls = [];
+  const mediaEnv = {
+    META_ACCESS_TOKEN: 'test-token', PHONE_NUMBER_ID: '123',
+    AI: { async run(model, input) {
+      aiCalls.push({ model, input });
+      return { text: 'Wholesale rate batao' };
+    } },
+  };
+  let count = 0;
+  const { customerText, image } = await interpretInboundMedia(mediaEnv, {
+    media_kind: 'audio', media_id: '123456789', body: '[Customer sent a audio message]',
+  }, async () => {
+    count++;
+    return count === 1
+      ? new Response(JSON.stringify({ mime_type: 'audio/ogg', file_size: 3, url: 'https://lookaside.fbsbx.com/audio' }))
+      : new Response(new Uint8Array([1, 2, 3]));
+  });
+  assert.equal(customerText, 'Wholesale rate batao');
+  assert.equal(image, null);
+  assert.equal(aiCalls[0].model, '@cf/openai/whisper-large-v3-turbo');
+  assert.equal(aiCalls[0].input.audio, 'AQID');
+  assert.equal(qualifiesB2B('', 'unknown'), 'unknown', 'a transcription alone does not unlock rates');
 });
 
 test('model cannot enable prices by claiming b2b while code disagrees', async () => {

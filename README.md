@@ -56,6 +56,11 @@ catalog data, hosted CRM infrastructure, deterministic product tools, AI evaluat
 human approval, controlled rollout, and order automation remains in
 [docs/WHATSAPP_AI_AGENT_ROADMAP.md](docs/WHATSAPP_AI_AGENT_ROADMAP.md).
 
+The metadata and media feature branch adds verified sales details in `/admin`,
+photo-based matching, and voice-note transcription. See
+[docs/CATALOG_METADATA_AND_MEDIA.md](docs/CATALOG_METADATA_AND_MEDIA.md) for the
+required migrations and rollout order. These branch changes are not live yet.
+
 ## Architecture
 
 ```

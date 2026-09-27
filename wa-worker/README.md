@@ -28,6 +28,13 @@ The Kimi model is `kimi-k2.6` with thinking disabled, JSON-envelope output (`rep
 - `POST /admin/resume` with the same header and JSON `{ "waId": "91..." }` returns a human-held conversation to bot mode.
 - `wa_inbox.status = 'needs_review'` identifies messages whose Graph send failed or whose processing failed three times. Review these rows before retrying to avoid duplicate customer replies.
 - A cron run every minute retries model/catalog failures. It never automatically repeats a Graph send once sending started.
-- The Worker ignores status events and webhook payloads for other WABA/phone IDs. Photos, voice notes, documents and other non-text messages enter the human handoff inbox.
+- The Worker ignores status events and webhook payloads for other WABA/phone IDs. The currently deployed version sends non-text messages to human handoff; the feature branch processes photos and voice notes while documents and videos still reach a person.
+
+The feature branch adds verified product details to the model's catalog context and
+supports inbound customer photos and voice notes. Apply both D1 migrations before
+deploying it; see [Catalog metadata and media](../docs/CATALOG_METADATA_AND_MEDIA.md).
+Photo replies use model-selected, code-validated IDs with a fixed introduction. Voice
+notes are transcribed through the new `AI` binding; transcription alone never unlocks
+the B2B price gate. Documents and videos continue to reach a person.
 
 This is a controlled first version. It does not confirm orders, guarantee availability or dispatch, negotiate discounts, or send approved WhatsApp templates outside the customer-service window.

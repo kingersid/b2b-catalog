@@ -17,8 +17,10 @@ export async function onRequestGet({ env }) {
          FROM designs d
          LEFT JOIN prices p_name ON p_name.item_id = d.name
          LEFT JOIN prices p_id ON p_id.item_id = d.design_id
+         LEFT JOIN design_metadata m ON m.design_id = d.design_id
         WHERE d.active = 1
           AND COALESCE(p_name.price, p_id.price) > 0
+          AND COALESCE(m.availability, 'unknown') != 'sold_out'
         ORDER BY d.sort_order DESC, d.created_at DESC`
     ).all();
 

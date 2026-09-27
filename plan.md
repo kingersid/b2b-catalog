@@ -2,6 +2,10 @@
 
 **Status:** Live since 27 September 2026. The Worker at `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev` is the production webhook for WABA `2150197029173188`, with Kimi K2.6 as the model. The Meta `messages` callback on the WhatsApp Business Account object points to the Worker; the published n8n workflow is retained solely for rollback. Remaining before the release is fully declared done: a verified live end-to-end message (release gate 6) and an unattended operator alert.
 
+**Feature branch in progress:** `codex/catalog-metadata-multimodal` adds verified
+product facts and inbound photo/voice handling. It requires D1 migrations and a
+test-number check before deployment; see `docs/CATALOG_METADATA_AND_MEDIA.md`.
+
 ## Goal
 
 Move the WhatsApp webhook and sales replies from n8n Cloud to a separate Cloudflare Worker. Use the existing catalog's production D1 database for active designs and saved rates, and use Kimi's Chat Completions API to interpret buyer messages. Keep Cloudflare usage within its free tier for as long as traffic permits. Kimi API usage and any chargeable Meta template messages are separate costs.
