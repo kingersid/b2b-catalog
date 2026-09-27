@@ -35,6 +35,7 @@ Hide   → Website removes item immediately → Meta removes it on its next refr
 | [Price catalog](https://chandni-catalog.pages.dev/price-catalog) | Customer catalog with real saved prices |
 | [Upload](https://chandni-catalog.pages.dev/upload) | Add portrait design photos |
 | [Admin](https://chandni-catalog.pages.dev/admin) | Set prices and hide or restore designs |
+| [Available designs](https://chandni-catalog.pages.dev/available-catalog) | Live, price-free assortment of designs marked available in admin |
 | [Meta feed](https://chandni-catalog.pages.dev/meta-feed) | Scheduled CSV source with placeholder prices |
 | [Dashboard](https://chandni-catalog.pages.dev/dashboard) | Catalog engagement analytics |
 | [Privacy policy](https://chandni-catalog.pages.dev/privacy) | Customer data and WhatsApp automation policy |
@@ -60,7 +61,9 @@ The live catalog admin now has verified sales details for each design. The Worke
 uses those facts for recommendations and can interpret customer photos and voice
 notes. See [docs/CATALOG_METADATA_AND_MEDIA.md](docs/CATALOG_METADATA_AND_MEDIA.md)
 for the operator workflow and test status. Product details must be entered by the
-team before the agent can use them; the current **Agent ready** count is zero.
+team before the agent can use them; the **Agent ready** count in admin shows progress.
+When a buyer asks for all ready or available designs, the Worker sends one link to
+the full available-designs page. Normal recommendations still show up to three designs.
 
 ## Architecture
 

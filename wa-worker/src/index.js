@@ -73,6 +73,20 @@ function basicDecision(message) {
   return null;
 }
 
+export function wantsAvailableAssortment(message) {
+  const text = String(message || '').trim().toLowerCase();
+  const readyStock = /\bready[ -]?stock\b/.test(text);
+  const availability = /\b(ready|available|in stock)\b/.test(text) || /उपलब्ध|तैयार|તૈયાર|ઉપલબ્ધ/.test(text);
+  const designs = /\b(designs?|catalog(?:ue)?|collection|assortment|stock)\b/.test(text) || /डिज़ाइन|डिजाइन|ડિઝાઇન/.test(text);
+  const all = /\b(all|full|entire|complete|whole|every|assortment)\b/.test(text) || /सब|सारे|पूरे|जितने|બધા|તમામ/.test(text);
+  const request = /\b(send|show|share|give|want|see|view|bhejo|dikhao|bataye|dikhana)\b/.test(text) || /भेज|दिखा|बताओ|મોકલ|બતાવ/.test(text);
+  return availability && designs && request && (all || readyStock || /\bready\s+available\s+designs?\b/.test(text) || /^\s*(?:please\s+)?(?:send|show|share)\s+(?:me\s+|us\s+|your\s+)*(?:available|ready)\s+designs?[.!?]*$/.test(text));
+}
+
+export function availableCatalogMessage(origin) {
+  return `Browse the full assortment our team has marked available: ${origin}/available-catalog. The page updates as designs change. Tell me which design interests you, and I'll help with details.`;
+}
+
 async function equalSecret(a, b) {
   const [left, right] = await Promise.all([a, b].map(value => crypto.subtle.digest('SHA-256', encoder.encode(value))));
   const x = new Uint8Array(left);
@@ -435,6 +449,23 @@ async function processMessage(env, id) {
       return;
     }
 
+    if (wantsAvailableAssortment(customerText)) {
+      const nextB2B = qualifiesB2B(row.media_kind === 'audio' ? '' : row.body, conversation?.b2b);
+      await rememberProfile(env, row.wa_id, { b2b: nextB2B });
+      const reply = availableCatalogMessage(origin);
+      await mark(env, id, 'sending');
+      sendStarted = true;
+      try {
+        await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: reply } });
+      } catch (error) {
+        await mark(env, id, 'needs_review', null, String(error.message).slice(0, 200));
+        log('send_failed', { messageId: id, error: String(error.message).slice(0, 100) });
+        return;
+      }
+      await mark(env, id, 'done', reply);
+      log('available_catalog_sent', { messageId: id });
+      return;
+    }
     const designs = await catalog(env);
     const history = await recentHistory(env, row.wa_id);
     let decision;

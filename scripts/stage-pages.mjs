@@ -7,7 +7,7 @@ await rm(output, { recursive: true, force: true });
 await mkdir(output);
 
 const entries = await readdir(root, { withFileTypes: true });
-const publicPages = new Set(['index.html', 'admin.html', 'dashboard.html', 'price-catalog.html', 'privacy.html', 'upload.html', 'swipe-hint-prototype.html', 'media.js', '_headers']);
+const publicPages = new Set(['index.html', 'admin.html', 'available-catalog.html', 'dashboard.html', 'price-catalog.html', 'privacy.html', 'upload.html', 'swipe-hint-prototype.html', 'media.js', '_headers']);
 const publicFiles = entries.filter(entry => entry.isFile() &&
   (publicPages.has(entry.name) || /\.(jpg|jpeg|png|webp|svg|ico|webmanifest)$/i.test(entry.name)));
 for (const file of publicFiles) {

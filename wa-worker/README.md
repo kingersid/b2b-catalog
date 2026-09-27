@@ -37,4 +37,9 @@ Photo replies use model-selected, code-validated IDs with a fixed introduction. 
 notes are transcribed through the new `AI` binding; transcription alone never unlocks
 the B2B price gate. Documents and videos continue to reach a person.
 
+A request such as “send me ready available designs” takes a deterministic route:
+the Worker sends `/available-catalog`, a live page containing every active, positively
+priced design explicitly marked **Available** in admin. The page never exposes
+private rates. Ordinary recommendations retain the three-image limit.
+
 This is a controlled first version. It does not confirm orders, guarantee availability or dispatch, negotiate discounts, or send approved WhatsApp templates outside the customer-service window.

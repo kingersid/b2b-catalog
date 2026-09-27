@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHmac, webcrypto } from 'node:crypto';
 import test from 'node:test';
-import worker, { verifySignature, payloadsFor, basicDecision, kimiFailure, decide, qualifiesB2B, mergeB2B, sanitizeReply, downloadCustomerMedia, interpretInboundMedia } from './index.js';
+import worker, { verifySignature, payloadsFor, basicDecision, kimiFailure, decide, qualifiesB2B, mergeB2B, sanitizeReply, downloadCustomerMedia, interpretInboundMedia, wantsAvailableAssortment, availableCatalogMessage } from './index.js';
 
 globalThis.crypto ||= webcrypto;
 
@@ -88,6 +88,18 @@ test('simple messages avoid a model call', () => {
   assert.deepEqual(basicDecision('[Customer sent a image message]'), { kind: 'media' });
   assert.deepEqual(basicDecision('Please talk to a human'), { kind: 'human' });
   assert.equal(basicDecision('hi'), null, 'greetings now go to the persona agent');
+});
+
+test('full available assortment requests get the whole live catalog link', () => {
+  assert.equal(wantsAvailableAssortment('send me ready available designs'), true);
+  assert.equal(wantsAvailableAssortment('Please show me all available designs'), true);
+  assert.equal(wantsAvailableAssortment('Show me your ready stock'), true);
+  assert.equal(wantsAvailableAssortment('show me blue designs'), false);
+  assert.equal(wantsAvailableAssortment('is this design available?'), false);
+  const reply = availableCatalogMessage('https://chandni-catalog.pages.dev');
+  assert.match(reply, /full assortment/);
+  assert.match(reply, /https:\/\/chandni-catalog\.pages\.dev\/available-catalog/);
+  assert.doesNotMatch(reply, /₹|\bunknown\b|\blow.stock\b/);
 });
 
 test('Kimi persona request carries profile, designs, and history', async () => {

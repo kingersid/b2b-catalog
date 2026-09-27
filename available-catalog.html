@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b0e">
+  <meta name="description" content="Browse designs marked available by Chandni Silk Mills. Ask our team about the designs you like.">
+  <meta property="og:title" content="Available Designs — Chandni Silk Mills">
+  <meta property="og:description" content="Browse the current assortment marked available by our team.">
+  <title>Available Designs — Chandni Silk Mills</title>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b0b0e; color: #eef2f7; }
+    a { color: inherit; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 56px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+    h1 { margin: 0 0 5px; font-size: clamp(25px, 5vw, 38px); }
+    .eyebrow { color: #34d399; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .sub, .note { color: #a7b2bf; line-height: 1.5; }
+    .sub { margin: 8px 0 0; }
+    .home { flex: 0 0 auto; padding: 10px 13px; border: 1px solid #47515d; border-radius: 9px; text-decoration: none; font-size: 13px; }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .toolbar input { width: min(100%, 400px); padding: 12px 13px; border: 1px solid #48525d; border-radius: 10px; background: #171b22; color: #fff; font: inherit; }
+    .count { color: #34d399; font-weight: 700; white-space: nowrap; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 16px; }
+    .card { overflow: hidden; border: 1px solid #2b333e; border-radius: 13px; background: #14181f; }
+    .card img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; background: #232a33; }
+    .body { padding: 13px; }
+    .body h2 { margin: 0 0 8px; font-size: 17px; overflow-wrap: anywhere; }
+    .fact { margin: 5px 0; color: #c5ced8; font-size: 13px; line-height: 1.4; }
+    .fact b { color: #eef2f7; }
+    .actions { display: flex; gap: 8px; margin-top: 13px; }
+    .actions a { flex: 1; padding: 10px 8px; border-radius: 8px; text-align: center; text-decoration: none; font-size: 12px; font-weight: 800; }
+    .ask { background: #2aaf7b; color: #07130e; }
+    .view { border: 1px solid #52606e; }
+    #status { padding: 14px 0; color: #a7b2bf; }
+    .note { margin: 24px 0 0; font-size: 13px; }
+    @media (max-width: 560px) {
+      header { display: block; }
+      .home { display: inline-block; margin-top: 14px; }
+      .toolbar { align-items: stretch; flex-direction: column; }
+      .toolbar input { width: 100%; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+      .body { padding: 10px; }
+      .body h2 { font-size: 14px; }
+      .actions { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="eyebrow">Chandni Silk Mills</div>
+        <h1>Available designs</h1>
+        <p class="sub">Browse every design currently marked available by our team. Ask us about quantity and details before ordering.</p>
+      </div>
+      <a class="home" href="/">Full catalog</a>
+    </header>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search fabric, work, colours or use" aria-label="Search available designs">
+      <span class="count" id="count"></span>
+    </div>
+    <div id="status" role="status">Loading available designs…</div>
+    <main class="grid" id="grid"></main>
+    <p class="note">Availability can change. Our team will confirm the requested design and quantity on WhatsApp. Wholesale rates are shared in conversation with business buyers.</p>
+  </div>
+  <script>
+    const grid = document.getElementById('grid');
+    const status = document.getElementById('status');
+    const count = document.getElementById('count');
+    const search = document.getElementById('search');
+    let designs = [];
+
+    function fact(label, value) {
+      if (!value) return null;
+      const line = document.createElement('p');
+      line.className = 'fact';
+      const title = document.createElement('b');
+      title.textContent = label + ': ';
+      line.append(title, document.createTextNode(value));
+      return line;
+    }
+
+    function render() {
+      const term = search.value.trim().toLocaleLowerCase();
+      const matches = designs.filter(design => [design.title, design.fabric_type, design.pattern,
+        design.colors, design.use_cases].some(value => String(value || '').toLocaleLowerCase().includes(term)));
+      count.textContent = term ? `${matches.length} of ${designs.length} designs` : `${designs.length} designs`;
+      grid.replaceChildren();
+      status.textContent = matches.length ? '' : designs.length ? 'No designs match that search.' : 'No designs are marked available right now.';
+      for (const design of matches) {
+        const card = document.createElement('article');
+        card.className = 'card';
+        const image = document.createElement('img');
+        image.alt = design.title;
+        image.loading = 'lazy';
+        image.src = '/api/designs?img=' + encodeURIComponent(`designs/mid/${design.design_id}.webp`);
+        image.onerror = () => {
+          image.onerror = null;
+          image.src = '/api/designs?img=' + encodeURIComponent(`designs/original/${design.design_id}.jpg`);
+        };
+        const body = document.createElement('div');
+        body.className = 'body';
+        const heading = document.createElement('h2');
+        heading.textContent = design.title;
+        body.append(heading);
+        for (const [label, value] of [['Fabric', design.fabric_type], ['Work', design.pattern],
+          ['Colours', design.colors], ['Best uses', design.use_cases],
+          ['Minimum metres', design.moq_meters]]) {
+          const line = fact(label, value == null ? '' : String(value));
+          if (line) body.append(line);
+        }
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const ask = document.createElement('a');
+        ask.className = 'ask';
+        ask.textContent = 'Ask on WhatsApp';
+        ask.href = 'https://wa.me/918320129806?text=' + encodeURIComponent(`Hello, I am interested in ${design.title} (design ${design.design_id}). Please share details.`);
+        const view = document.createElement('a');
+        view.className = 'view';
+        view.textContent = 'View design';
+        view.href = '/share?id=' + encodeURIComponent(design.design_id);
+        actions.append(ask, view);
+        body.append(actions);
+        card.append(image, body);
+        grid.append(card);
+      }
+    }
+
+    search.addEventListener('input', render);
+    fetch('/api/available-designs', { cache: 'no-store' })
+      .then(response => { if (!response.ok) throw new Error('Request failed'); return response.json(); })
+      .then(data => { designs = Array.isArray(data.designs) ? data.designs : []; render(); })
+      .catch(() => { status.textContent = 'Could not load designs. Please refresh this page.'; });
+  </script>
+</body>
+</html>
