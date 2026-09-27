@@ -11,7 +11,11 @@
   "vars": {
     "PHONE_NUMBER_ID": "1329088423615686",
     "WABA_ID": "2150197029173188",
+    "META_APP_ID": "1084450467911931",
     "CATALOG_ORIGIN": "https://chandni-catalog.pages.dev",
+    // Free WhatsApp community link the agent offers for daily design updates.
+    // Only code sends this link, at most once per conversation (14-day cooldown).
+    "COMMUNITY_URL": "https://chat.whatsapp.com/G7pZBW5435aKDV8vd8FDlH",
     "KIMI_MODEL": "kimi-k2.6"
   },
   "d1_databases": [

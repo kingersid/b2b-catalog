@@ -1,16 +1,23 @@
 # Chandni WhatsApp Worker
 
-This Worker can replace the n8n webhook for production WABA `2150197029173188` and phone ID `1329088423615686`. It uses the catalog's production D1 database, checks Meta's HMAC signature, deduplicates message IDs, calls Kimi for a structured decision, validates design IDs against active designs with positive saved prices, and sends replies through the WhatsApp Cloud API. Human handoffs and opt-outs stop bot replies for that number.
+This Worker is the production webhook (since 27 September 2026) for production WABA `2150197029173188` and phone ID `1329088423615686`. It uses the catalog's production D1 database, checks Meta's HMAC signature, deduplicates message IDs, and runs a persona-driven sales agent on Kimi modeled on Meta's Business Assistant behavior (see `docs/META_ASSISTANT_PLAYBOOK.md`): it mirrors the customer's language, remembers their name, city, business type and use case, shows matching designs, and offers the free WhatsApp community.
 
-## Before switching Meta's webhook
+**Price gate (code-enforced, not prompt-enforced).** Rates are shown only after the buyer's own words indicate B2B intent — shop owner, reseller, manufacturer, wholesale/bulk buyer (regex `B2B_PATTERN`, multilingual Hindi/Gujarati/Hinglish). The model can never enable prices by claiming B2B, and every model-authored free-text reply is passed through `sanitizeReply`, which drops any reply containing prices, discount or stock promises, or links. Captions carry rates only from validated D1 designs and only when the gate is open.
 
-1. Apply `wa-worker/schema.sql` to the **existing** `chandni-catalog` D1 database. The migration only adds `wa_inbox` and `wa_conversations`.
-2. Deploy with `wrangler deploy --config wa-worker/wrangler.jsonc`. This creates a separate Worker and does not change the Pages catalog or Meta's current webhook.
-3. Set these Worker secrets with `wrangler secret put NAME --config wa-worker/wrangler.jsonc`: `META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `KIMI_API_KEY`, and `AGENT_ADMIN_KEY`. Use interactive input; do not put values in command arguments, source, or documentation. Reuse the existing Meta app's verification token and app secret when moving its callback.
-4. Check `GET https://chandni-whatsapp-agent.<your-subdomain>.workers.dev/health`. Test `GET /webhook` with Meta's verification flow and a signed text webhook using the test WABA before moving the production callback.
-5. In Meta, change the `messages` webhook callback to `https://chandni-whatsapp-agent.<your-subdomain>.workers.dev/webhook`. Keep the n8n workflow available for rollback until a live customer message receives a correct reply.
+## Deployment state and rollback
 
-The Kimi model is `kimi-k2.6` with thinking disabled, JSON output, and a short output limit. Kimi API usage is billed separately even when Cloudflare stays within its free limits. The model receives message text, recent conversation snippets, and public design IDs/names. It does not receive the customer's WhatsApp number or saved rates. Rates are added in code after the model's IDs are checked against D1.
+Current production state (cutover completed 27 September 2026):
+
+1. `wa-worker/schema.sql` is applied to the production `chandni-catalog` D1 database (adds `wa_inbox` and `wa_conversations`).
+2. The Worker is deployed with `wrangler deploy --config wa-worker/wrangler.jsonc`; the Pages catalog is untouched.
+3. Secrets are configured: `META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `KIMI_API_KEY`, and `AGENT_ADMIN_KEY`. Rotate with `wrangler secret put NAME --config wa-worker/wrangler.jsonc` using interactive input; do not put values in command arguments, source, or documentation.
+4. In the Meta app, the `messages` callback on the **WhatsApp Business Account** object points to `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/webhook` with the `messages` field subscribed. The app's **User** object has a separate webhook configuration; only the WABA object carries message events.
+
+To roll back, set the WABA object's callback back to `https://b2bsuratfab.app.n8n.cloud/webhook/whatsapp-catalog-agent` and confirm a test reply. Message-ID deduplication lives in the Worker's `wa_inbox`, which n8n does not read — never run both handlers at once.
+
+The Kimi model is `kimi-k2.6` with thinking disabled, JSON-envelope output (`reply`, `design_ids`, `handoff`, `optout`, `community`, `profile`), and a bounded output limit. Kimi API usage is billed separately even when Cloudflare stays within its free limits. The model receives message text, recent conversation snippets, the stored buyer profile, and public design IDs/names. It does not receive saved rates. Rates are added in code after the model's IDs are checked against D1, and only for B2B-qualified conversations.
+
+`COMMUNITY_URL` in `wrangler.jsonc` holds the free WhatsApp community invite link (recovered from the team's own sent history). The agent is instructed to invite every first-time customer to the community as a mid-funnel step; code appends the actual link and enforces a 14-day once-per-conversation cooldown, so the link can never repeat-spam a buyer. Leave the value empty to disable the CTA. Only code sends this link.
 
 ## Operations
 

@@ -59,7 +59,7 @@ el('self-test').onclick = async () => {
   el('test-result').textContent = 'Checking connections...';
   try {
     const result = await api('/admin/self-test', { method: 'POST' });
-    el('test-result').textContent = 'Catalog: ' + result.catalog.pricedDesigns + ' priced designs · Kimi: ' + (result.kimi.ok ? 'ready' : result.kimi.error) + ' · Meta: ' + (result.meta.ok ? 'production phone accessible' : result.meta.error);
+    el('test-result').textContent = 'Catalog: ' + result.catalog.pricedDesigns + ' priced designs · Kimi: ' + (result.kimi.ok ? 'ready' : result.kimi.error) + ' · Meta: ' + (result.meta.ok ? 'production phone accessible' : result.meta.error) + (result.subscribedApps ? ' · Subscribed apps: ' + (result.subscribedApps.ok ? result.subscribedApps.detail : result.subscribedApps.error) : '');
   } catch (error) { el('test-result').textContent = error.message; }
   el('self-test').disabled = false;
 };

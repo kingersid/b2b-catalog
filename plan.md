@@ -1,6 +1,6 @@
 # WhatsApp sales agent: Cloudflare Worker implementation plan
 
-**Status:** Worker deployed at `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev`; production D1 tables, health, D1 connectivity, and the required Worker secrets are in place. The model provider has been switched to Kimi K2.6 for low-cost testing. The live Meta webhook cutover remains pending; the published n8n workflow remains the production handler.
+**Status:** Live since 27 September 2026. The Worker at `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev` is the production webhook for WABA `2150197029173188`, with Kimi K2.6 as the model. The Meta `messages` callback on the WhatsApp Business Account object points to the Worker; the published n8n workflow is retained solely for rollback. Remaining before the release is fully declared done: a verified live end-to-end message (release gate 6) and an unattended operator alert.
 
 ## Goal
 
@@ -11,7 +11,7 @@ Move the WhatsApp webhook and sales replies from n8n Cloud to a separate Cloudfl
 - Accept only signed webhook events for production WABA `2150197029173188` and phone number ID `1329088423615686`.
 - Acknowledge Meta quickly, deduplicate by Meta message ID, and process text messages in the background with a D1 retry record.
 - Read active designs and positive saved rates directly from D1. The model sees design IDs and names, but no rates or customer phone number.
-- Let the model choose a structured action: show up to three designs, ask one clarification, hand off, or honor an opt-out. Code validates every selected design and creates every price-bearing reply.
+- Let the agent hold a persona-driven conversation modeled on Meta's Business Assistant (language mirroring, buyer-profile memory, design suggestions, community invite). The buyer's own words gate price visibility in code (`B2B_PATTERN`); the model can never enable prices, and `sanitizeReply` strips any price, stock, discount, or link text from model-authored replies.
 - Send replies through Graph API using the existing production phone ID. Record outcomes and make failed sends visible for review.
 - Provide a clear operator handoff and a way to resume the bot. No automated order confirmation, discount, stock promise, delivery commitment, or payment instruction.
 
@@ -75,9 +75,11 @@ Use a plain Worker, D1 binding, and Cron Trigger initially. This avoids a paid n
 - [x] Apply `wa-worker/schema.sql` to production D1 after the backup; verify both new tables exist and the catalog still has 61 designs.
 - [x] Deploy the Worker as a separate `workers.dev` service and configure the five required secrets; see `wa-worker/SETUP.md`.
 - [x] Confirm `/health`, D1 binding, webhook verification, and protected operator endpoints on the deployed Worker.
-- [ ] Add an operator alert and verify a human can claim and resume a conversation before live cutover.
-- [ ] Change the Meta app's `messages` callback to the Worker URL. Send a live message to `+91 83201 29806`; verify exactly one correct reply, execution record, and no new n8n production execution.
-- [ ] Keep the n8n workflow and callback details available for rollback until live traffic is stable. Do not run two reply handlers for the same incoming message.
+- [x] Verify a human can claim and resume a conversation from the operator inbox (`/admin`) before live cutover.
+- [ ] Add an unattended operator alert for handoffs and `needs_review` rows (for example, a WhatsApp template message to the owner's number). Polling `/admin` alone is not an alert.
+- [x] Change the Meta app's `messages` callback on the **WhatsApp Business Account** object to the Worker URL and confirm verification (27 September 2026). Cautions learned during cutover: (a) the app's **User** object has a separate webhook configuration that looks identical; saving there does not move message delivery. (b) The dashboard's *Verify and save* does not reliably create the app→WABA `subscribed_apps` entry, and the WABA callback can silently revert — delivery then continues on the old path while the dashboard looks correct. The Worker's `/admin` self-test now reads the live subscription and callback from the Graph API and can auto-subscribe, so audit there instead of trusting the dashboard.
+- [x] Send a live message to `+91 83201 29806` after cutover; verify exactly one correct reply, a `done` row in `wa_inbox`, and no new n8n production execution (verified 27 September 2026: persona reply, B2B unlock, and community CTA all confirmed in D1).
+- [x] Keep the n8n workflow and callback details available for rollback until live traffic is stable. Do not run two reply handlers for the same incoming message.
 
 ### 6. Operate and measure
 

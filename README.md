@@ -49,10 +49,12 @@ Hide   → Website removes item immediately → Meta removes it on its next refr
 
 ## WhatsApp AI Agent
 
-The staged plan for connecting this catalog to the existing WhatsApp Cloud API CRM is
-in [docs/WHATSAPP_AI_AGENT_ROADMAP.md](docs/WHATSAPP_AI_AGENT_ROADMAP.md). It covers
+The live implementation plan for the WhatsApp sales agent is [plan.md](plan.md); the
+Worker code and operator guide are under `wa-worker/` (see
+[wa-worker/README.md](wa-worker/README.md)). The long-term staged roadmap covering
 catalog data, hosted CRM infrastructure, deterministic product tools, AI evaluation,
-human approval, controlled rollout, and order automation.
+human approval, controlled rollout, and order automation remains in
+[docs/WHATSAPP_AI_AGENT_ROADMAP.md](docs/WHATSAPP_AI_AGENT_ROADMAP.md).
 
 ## Architecture
 
@@ -321,8 +323,12 @@ its value with the fixed `1 INR` placeholder.
 
 ## WhatsApp catalog agent
 
-A basic production agent runs in n8n and replies to customer messages with current
-designs, rates, and share links.
+A Cloudflare Worker (`chandni-whatsapp-agent`) is the production agent since
+**27 September 2026**. It verifies Meta's signature, deduplicates messages, asks
+**Kimi K2.6** for a structured JSON decision, validates design IDs against this
+catalog's production D1, and replies with priced designs, one clarification, a human
+handoff, or an opt-out confirmation. Operator inbox: `wa-worker` `/admin`.
+Full details: [plan.md](plan.md) and [wa-worker/README.md](wa-worker/README.md).
 
 ### Live configuration
 
@@ -332,21 +338,28 @@ designs, rates, and share links.
 | Meta app | `wa-crm` (`1084450467911931`) |
 | Production WABA | `2150197029173188` |
 | Phone number ID | `1329088423615686` |
-| n8n workflow | `WhatsApp Catalog Agent - Designs with Rates` |
-| Workflow ID | `pHwtP2qmCM2R4geC` |
-| Webhook | `https://b2bsuratfab.app.n8n.cloud/webhook/whatsapp-catalog-agent` |
+| Agent Worker | `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/webhook` |
+| Model | Kimi `kimi-k2.6` (JSON mode, thinking disabled) |
+| Rollback webhook | `https://b2bsuratfab.app.n8n.cloud/webhook/whatsapp-catalog-agent` |
+| n8n workflow (rollback only) | `WhatsApp Catalog Agent - Designs with Rates` (`pHwtP2qmCM2R4geC`) |
+
+The n8n workflow stays published but receives no traffic. To roll back, point the
+WABA webhook callback back to n8n and confirm a test reply — never run both
+handlers at once.
 
 ### Customer flow
 
-1. The customer sends `hi`, `design`, `catalog`, `rate`, or `price`.
-2. Meta delivers the message to the n8n webhook.
-3. n8n loads active designs from `/api/designs?format=full` and rates from
-   `/prices`.
-4. It replies with a greeting or up to three design images, each with its rate and
-   public share link.
+1. The customer sends a text to the WhatsApp number.
+2. Meta delivers the signed event to the Worker webhook.
+3. The Worker loads active designs and positive saved rates from D1, and asks Kimi
+   for an intent decision (`show_designs`, `clarify`, `handoff`, or `optout`).
+4. It replies with up to three design images with rates and share links, one
+   clarification question, or a handoff message; every price comes from D1 in code,
+   never from the model.
 
-The workflow uses a permanent Meta system-user token stored in the n8n credential
-named `Bearer Auth account`. The token is deliberately absent from this repository.
+The Worker uses a permanent Meta system-user token stored as its
+`META_ACCESS_TOKEN` secret (originally the n8n `Bearer Auth account` credential).
+The token is deliberately absent from this repository.
 Do not add tokens, OTPs, webhook verification secrets, or n8n credentials to Git.
 
 ### Meta permissions that must remain in place
@@ -362,14 +375,16 @@ causes Meta to return HTTP 400 `Authorization Error` with code 100.
 
 ### Troubleshooting
 
-- **No n8n execution:** check the Meta `messages` webhook subscription and that the
-  workflow is published.
+- **No reply at all:** check the Worker's D1 `wa_inbox` rows and Cloudflare Worker
+  logs, then the Meta `messages` subscription on the **WABA object** of the
+  webhook config (the User object has a separate, unrelated webhook config).
 - **OAuth code 190:** the token expired or was revoked; generate another permanent
-  system-user token and replace the n8n Bearer credential.
+  system-user token and update the Worker's `META_ACCESS_TOKEN` secret.
 - **HTTP 400, code 100:** confirm the system user has access to WABA
   `2150197029173188`; similarly named WABAs are present in the portfolio.
-- **Message arrives but reply is missing:** inspect the newest n8n execution and
-  expand the `Send WhatsApp Reply` error details.
+- **Message arrives but reply is missing:** check `wa_inbox.status` —
+  `needs_review` rows and handoffs appear in the Worker `/admin` inbox; a model or
+  catalog failure retries up to three times before needing review.
 
 ## Meta Commerce catalog feed
 
