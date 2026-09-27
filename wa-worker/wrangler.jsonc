@@ -17,7 +17,11 @@
     // Only code sends this link, at most once per conversation (14-day cooldown).
     "COMMUNITY_URL": "https://chat.whatsapp.com/G7pZBW5435aKDV8vd8FDlH",
     "KIMI_MODEL": "kimi-k2.6",
-    "ORDER_REMINDER_TEMPLATE": "chandni_pending_orders"
+    "ORDER_REMINDER_TEMPLATE": "chandni_pending_orders",
+    // Optional remote MCP server. Keep the allowlist narrow and tool names exact.
+    "MCP_SERVER_URL": "",
+    "MCP_ALLOWED_TOOLS": "",
+    "MCP_MAX_TOOL_ROUNDS": "2"
   },
   "d1_databases": [
     {

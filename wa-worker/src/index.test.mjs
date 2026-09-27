@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHmac, webcrypto } from 'node:crypto';
 import test from 'node:test';
 import worker, { verifySignature, payloadsFor, basicDecision, kimiFailure, decide, qualifiesB2B, mergeB2B, sanitizeReply, downloadCustomerMedia, interpretInboundMedia, wantsAvailableAssortment, availableCatalogMessage } from './index.js';
+import { connectMcp, callMcpTool } from './mcp.js';
 
 globalThis.crypto ||= webcrypto;
 
@@ -133,6 +134,64 @@ test('Kimi persona request carries profile, designs, and history', async () => {
   assert.equal(decision.reply, 'नमस्ते Ramesh जी! 😊 ये designs देखिए।');
   assert.deepEqual(decision.design_ids, ['live']);
   assert.equal(decision.profile.b2b, 'yes');
+});
+
+test('MCP discovery and tool calls are allowlisted and bounded', async () => {
+  const calls = [];
+  const mcp = await connectMcp({
+    MCP_SERVER_URL: 'https://tools.example/mcp',
+    MCP_ALLOWED_TOOLS: 'search_catalog',
+  }, async (url, options) => {
+    calls.push({ url, body: JSON.parse(options.body) });
+    const body = JSON.parse(options.body);
+    if (body.method === 'initialize') return new Response(JSON.stringify({ result: { serverInfo: { name: 'test' } } }));
+    if (body.method === 'tools/list') return new Response(JSON.stringify({ result: { tools: [
+      { name: 'search_catalog', description: 'Search products', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
+      { name: 'send_message', description: 'Must not be exposed' },
+    ] } }));
+    if (body.method === 'tools/call') return new Response(JSON.stringify({ result: { content: [{ type: 'text', text: 'blue silk' }] } }));
+    return new Response('{}');
+  });
+  assert.deepEqual(mcp.tools.map(tool => tool.name), ['search_catalog']);
+  const toolResult = JSON.parse(await callMcpTool(mcp, 'search_catalog', { query: 'blue' }, async (_url, options) => {
+    const body = JSON.parse(options.body);
+    return new Response(JSON.stringify({ result: { content: [{ type: 'text', text: `${body.params.name}:${body.params.arguments.query}` }] } }));
+  }));
+  assert.equal(toolResult.isError, false);
+  assert.equal(toolResult.content, 'search_catalog:blue');
+  await assert.rejects(() => callMcpTool(mcp, 'send_message', {}), /not allowlisted/);
+  assert.ok(calls.some(call => call.body.method === 'notifications/initialized'));
+});
+
+test('blank MCP tool allowlist exposes every discovered tool', async () => {
+  const mcp = await connectMcp({ MCP_SERVER_URL: 'https://tools.example/mcp', MCP_ALLOWED_TOOLS: '' }, async (_url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.method === 'initialize') return new Response(JSON.stringify({ result: {} }));
+    if (body.method === 'tools/list') return new Response(JSON.stringify({ result: { tools: [{ name: 'search_catalog' }, { name: 'read_page' }] } }));
+    return new Response('{}');
+  });
+  assert.deepEqual(mcp.tools.map(tool => tool.name), ['search_catalog', 'read_page']);
+});
+
+test('Kimi can use an MCP tool and then return the normal decision envelope', async () => {
+  let kimiCalls = 0;
+  const decision = await decide({
+    KIMI_API_KEY: 'test-key', MCP_SERVER_URL: 'https://tools.example/mcp', MCP_ALLOWED_TOOLS: 'search_catalog'
+  }, 'show blue designs', [], [], { b2b: 'unknown' }, async (url, options) => {
+    const body = JSON.parse(options.body);
+    if (url.includes('tools.example')) {
+      if (body.method === 'initialize') return new Response(JSON.stringify({ result: {} }));
+      if (body.method === 'tools/list') return new Response(JSON.stringify({ result: { tools: [{ name: 'search_catalog', description: 'Search catalog', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }] } }));
+      if (body.method === 'tools/call') return new Response(JSON.stringify({ result: { content: [{ type: 'text', text: 'blue design live' }] } }));
+      return new Response('{}');
+    }
+    kimiCalls++;
+    if (kimiCalls === 1) return new Response(JSON.stringify({ choices: [{ finish_reason: 'tool_calls', message: { content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'search_catalog', arguments: '{"query":"blue"}' } }] } }] }));
+    assert.equal(body.messages.at(-1).role, 'tool');
+    return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ reply: 'These designs may suit your need. Which use case is this for?', design_ids: ['live'], handoff: false, optout: false, community: false, profile: { b2b: 'unknown' } }) } }] }));
+  });
+  assert.equal(kimiCalls, 2);
+  assert.deepEqual(decision.design_ids, ['live']);
 });
 
 test('photo input reaches Kimi as vision content without opening the price gate', async () => {

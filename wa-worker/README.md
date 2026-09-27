@@ -44,6 +44,40 @@ private rates. Ordinary recommendations retain the three-image limit.
 
 The customer-facing sales agent does not confirm buyer orders, guarantee availability or dispatch, or negotiate discounts. The internal order reminder below uses an approved template outside the customer-service window.
 
+## Optional MCP tools
+
+The Kimi sales loop can call tools exposed by one remote MCP server. Configure
+`MCP_SERVER_URL` as a Worker variable, `MCP_SERVER_TOKEN` as a secret when the
+server uses bearer authentication, and `MCP_ALLOWED_TOOLS` as a comma-separated
+allowlist of exact tool names. Leave the tool list blank to expose all discovered
+tools (up to the worker's bounded tool catalog). Leave `MCP_SERVER_URL` empty to
+disable MCP.
+
+The worker discovers tools with `initialize` and `tools/list`, passes only the
+allowlisted schemas to Kimi, executes at most four tool calls per model turn,
+and allows at most `MCP_MAX_TOOL_ROUNDS` follow-up rounds (default 2). Tool
+failures are returned to the model as bounded errors; if discovery fails, the
+existing sales flow continues without tools. MCP output is treated as data and
+does not override the code-side price, handoff, link, or WhatsApp-send guards.
+
+The `/admin` page also has an MCP connection panel. Enter the MCP server URL,
+OAuth client ID, optional client secret, and exact comma-separated tool names,
+then click **Connect MCP**. The Worker uses Authorization Code + PKCE, opens
+the provider authorization page in a popup, validates the callback state, and
+stores encrypted access/refresh tokens in D1. Add the callback URL shown by the
+page to the OAuth client configuration. Apply the new `wa_mcp_oauth_pending`
+and `wa_mcp_connections` tables from `schema.sql` before using this panel.
+
+The private operator chat is available at `/admin/chat`. It uses the same admin
+key, catalog context, Kimi loop, and connected MCP tools as WhatsApp, but stores
+only browser-session messages in `wa_operator_chat_messages` and never sends a
+WhatsApp message.
+
+Use MCP for read-only capabilities first, such as product search, CRM context,
+or delivery-area lookup. Keep order placement, payment, price changes, and
+outbound messaging behind a separate approval path rather than exposing them
+directly to this customer-facing loop.
+
 ## Internal order inbox
 
 Messages sent **from +91 95370 97267** to the production bot number **+91 83201 29806** use a separate order flow. Send “Please note this order” with the party and location. The bot returns an order number. Send marked photos and additional notes within one hour, then send `END ORDER` to close that group. A new “note this order” message starts a new group. Images are copied to private `wa-orders/` objects in R2; the operator can inspect them at the Worker's `/admin` page.

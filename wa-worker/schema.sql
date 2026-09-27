@@ -33,6 +33,41 @@ CREATE TABLE IF NOT EXISTS wa_conversations (
   community_sent_at INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS wa_mcp_oauth_pending (
+  state TEXT PRIMARY KEY,
+  server_url TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret TEXT,
+  code_verifier TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  authorization_endpoint TEXT NOT NULL,
+  token_endpoint TEXT NOT NULL,
+  allowed_tools TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wa_mcp_connections (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  server_url TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_type TEXT NOT NULL DEFAULT 'Bearer',
+  expires_at INTEGER,
+  allowed_tools TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wa_operator_chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_wa_operator_chat_session ON wa_operator_chat_messages(session_id, created_at);
+
 -- Migration for existing installs (2026-09-27): buyer-profile memory for the
 -- general-agent persona. Run each line separately; duplicate-column errors are harmless.
 -- ALTER TABLE wa_conversations ADD COLUMN customer_name TEXT;
