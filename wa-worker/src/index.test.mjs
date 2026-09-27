@@ -92,10 +92,12 @@ test('simple messages avoid a model call', () => {
 
 test('full available assortment requests get the whole live catalog link', () => {
   assert.equal(wantsAvailableAssortment('send me ready available designs'), true);
+  assert.equal(wantsAvailableAssortment('pls send me available ready designs'), true);
   assert.equal(wantsAvailableAssortment('Please show me all available designs'), true);
   assert.equal(wantsAvailableAssortment('Show me your ready stock'), true);
   assert.equal(wantsAvailableAssortment('show me blue designs'), false);
   assert.equal(wantsAvailableAssortment('is this design available?'), false);
+  assert.equal(wantsAvailableAssortment('i dont want butterfly any other available ready design'), false);
   const reply = availableCatalogMessage('https://chandni-catalog.pages.dev');
   assert.match(reply, /full assortment/);
   assert.match(reply, /https:\/\/chandni-catalog\.pages\.dev\/available-catalog/);

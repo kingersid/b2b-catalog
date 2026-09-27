@@ -80,7 +80,7 @@ export function wantsAvailableAssortment(message) {
   const designs = /\b(designs?|catalog(?:ue)?|collection|assortment|stock)\b/.test(text) || /डिज़ाइन|डिजाइन|ડિઝાઇન/.test(text);
   const all = /\b(all|full|entire|complete|whole|every|assortment)\b/.test(text) || /सब|सारे|पूरे|जितने|બધા|તમામ/.test(text);
   const request = /\b(send|show|share|give|want|see|view|bhejo|dikhao|bataye|dikhana)\b/.test(text) || /भेज|दिखा|बताओ|મોકલ|બતાવ/.test(text);
-  return availability && designs && request && (all || readyStock || /\bready\s+available\s+designs?\b/.test(text) || /^\s*(?:please\s+)?(?:send|show|share)\s+(?:me\s+|us\s+|your\s+)*(?:available|ready)\s+designs?[.!?]*$/.test(text));
+  return availability && designs && request && (all || readyStock || /\b(?:ready\s+available|available\s+ready)\s+designs\b/.test(text) || /^\s*(?:pls\s+|please\s+)?(?:send|show|share)\s+(?:me\s+|us\s+|your\s+)*(?:available|ready)\s+designs?[.!?]*$/.test(text));
 }
 
 export function availableCatalogMessage(origin) {
