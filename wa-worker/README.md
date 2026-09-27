@@ -42,4 +42,12 @@ the Worker sends `/available-catalog`, a live page containing every active, posi
 priced design explicitly marked **Available** in admin. The page never exposes
 private rates. Ordinary recommendations retain the three-image limit.
 
-This is a controlled first version. It does not confirm orders, guarantee availability or dispatch, negotiate discounts, or send approved WhatsApp templates outside the customer-service window.
+The customer-facing sales agent does not confirm buyer orders, guarantee availability or dispatch, or negotiate discounts. The internal order reminder below uses an approved template outside the customer-service window.
+
+## Internal order inbox
+
+Messages sent **from +91 95370 97267** to the production bot number **+91 83201 29806** use a separate order flow. Send “Please note this order” with the party and location. The bot returns an order number. Send marked photos and additional notes within one hour, then send `END ORDER` to close that group. A new “note this order” message starts a new group. Images are copied to private `wa-orders/` objects in R2; the operator can inspect them at the Worker's `/admin` page.
+
+At 12:00 PM Asia/Kolkata each day, the Worker sends pending orders to +91 95370 97267. If the number messaged the bot in the previous 24 hours, it sends ordinary text; otherwise it uses the `chandni_pending_orders` English template on production WABA `2150197029173188`. That template must be approved by Meta. When finished, reply `COMPLETED 12` (using the actual order number), or reply `COMPLETED` directly to the original order acknowledgement. `PENDING` requests the current list at any time. A completed order stays in the database and disappears from future reminders.
+
+Apply `wa-worker/orders.sql` once to production D1 before deploying this Worker. On an installation that already created `wa_orders` before the retry-safety column was added, run `ALTER TABLE wa_orders ADD COLUMN start_message_id TEXT;` followed by `CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_orders_start_message ON wa_orders(start_message_id);` once. `ORDER_IMAGES` binds the existing R2 bucket for private annotated photos. The `/api/designs?img=` proxy does not serve the `wa-orders/` prefix. Reminder attempts are recorded in `wa_order_reminders` to avoid duplicate noon sends; review any `failed` row and the Meta template status if no reminder arrives. The noon template is a Meta business-initiated message and may incur WhatsApp template charges.

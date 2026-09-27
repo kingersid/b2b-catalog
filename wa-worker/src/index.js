@@ -1,5 +1,6 @@
 import { ADMIN_HTML } from './admin.js';
 import { Buffer } from 'node:buffer';
+import { handleOwnerOrder, sendNoonOrderReminder } from './orders.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const RETRY_SECONDS = [30, 120, 600];
@@ -431,6 +432,20 @@ async function processMessage(env, id) {
   if (!row) return;
   let sendStarted = false;
   try {
+    if (row.wa_id === '919537097267') {
+      const outcome = await handleOwnerOrder(env, row, { downloadMedia: downloadCustomerMedia });
+      if (outcome?.text) {
+        await mark(env, id, 'sending');
+        sendStarted = true;
+        const graphId = await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: outcome.text } });
+        if (outcome.orderId) {
+          await env.CATALOG_DB.prepare('INSERT OR IGNORE INTO wa_order_outbound (graph_message_id, order_id, sent_at) VALUES (?, ?, ?)')
+            .bind(graphId, outcome.orderId, now()).run();
+        }
+      }
+      await mark(env, id, 'done', outcome?.text || 'Order item saved');
+      return;
+    }
     const conversation = await env.CATALOG_DB.prepare('SELECT * FROM wa_conversations WHERE wa_id = ?').bind(row.wa_id).first();
     if (conversation?.mode !== 'bot') { await mark(env, id, 'ignored'); return; }
 
@@ -576,6 +591,10 @@ async function receiveWebhook(request, env, ctx) {
         ).bind(String(message.id), waId, text, stamp, stamp,
           mediaId ? kind : null, mediaId, media?.mime_type || null).run();
         if (!inserted.meta.changes) continue;
+        if (waId === '919537097267' && message.context?.id) {
+          await env.CATALOG_DB.prepare('INSERT OR IGNORE INTO wa_order_context (message_id, replied_to_message_id) VALUES (?, ?)')
+            .bind(String(message.id), String(message.context.id)).run();
+        }
         accepted.push(String(message.id));
       }
     }
@@ -589,6 +608,30 @@ async function admin(request, env) {
     return response({ error: 'Unauthorized' }, 401);
   }
   const url = new URL(request.url);
+  if (request.method === 'GET' && url.pathname === '/admin/orders') {
+    const { results } = await env.CATALOG_DB.prepare("SELECT id, party, location, notes, status, created_at, updated_at, completed_at FROM wa_orders ORDER BY status DESC, created_at DESC LIMIT 100").all();
+    const ids = results.map(row => row.id);
+    const items = ids.length ? (await env.CATALOG_DB.prepare(`SELECT message_id, order_id, kind, text, created_at FROM wa_order_items WHERE order_id IN (${ids.map(() => '?').join(',')}) ORDER BY created_at`)
+      .bind(...ids).all()).results : [];
+    return response({ orders: results.map(order => ({ ...order, items: items.filter(item => item.order_id === order.id) })) });
+  }
+  if (request.method === 'GET' && url.pathname === '/admin/order-image') {
+    const item = await env.CATALOG_DB.prepare("SELECT r2_key, mime FROM wa_order_items WHERE message_id = ? AND kind = 'image'")
+      .bind(url.searchParams.get('id') || '').first();
+    if (!item?.r2_key) return response({ error: 'Not found' }, 404);
+    const object = await env.ORDER_IMAGES.get(item.r2_key);
+    if (!object) return response({ error: 'Not found' }, 404);
+    return new Response(object.body, { headers: { 'content-type': item.mime, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' } });
+  }
+  if (request.method === 'POST' && url.pathname === '/admin/orders/complete') {
+    const body = await request.json().catch(() => ({}));
+    const id = Number(body.id);
+    if (!Number.isSafeInteger(id) || id < 1) return response({ error: 'Valid order ID required' }, 400);
+    const stamp = now();
+    const result = await env.CATALOG_DB.prepare("UPDATE wa_orders SET status = 'completed', completed_at = ?, updated_at = ?, capture_until = ? WHERE id = ? AND status = 'pending'")
+      .bind(stamp, stamp, stamp, id).run();
+    return response({ completed: Boolean(result.meta.changes) });
+  }
   if (request.method === 'POST' && url.pathname === '/admin/self-test') {
     const designs = await catalog(env);
     const checks = await Promise.allSettled([
@@ -683,7 +726,7 @@ export default {
         const db = await env.CATALOG_DB.prepare("SELECT (SELECT COUNT(*) FROM wa_inbox) AS inbox_count, (SELECT COUNT(*) FROM designs) AS design_count").first();
         return response({ ok: true, database: 'connected', designs: Number(db.design_count), inbox: Number(db.inbox_count) });
       }
-      if (path === '/admin' && request.method === 'GET') return new Response(ADMIN_HTML, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'" } });
+      if (path === '/admin' && request.method === 'GET') return new Response(ADMIN_HTML, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'" } });
       if (path === '/webhook' && request.method === 'GET') return verifyWebhook(request, env);
       if (path === '/webhook' && request.method === 'POST') return receiveWebhook(request, env, ctx);
       if (path.startsWith('/admin/')) return admin(request, env);
@@ -699,6 +742,9 @@ export default {
       "SELECT message_id FROM wa_inbox WHERE attempts < 3 AND ((status = 'pending' AND available_at <= ?) OR (status = 'processing' AND lease_until < ?)) ORDER BY received_at LIMIT 20"
     ).bind(stamp, stamp).all();
     for (const row of results) ctx.waitUntil(processMessage(env, row.message_id));
+    ctx.waitUntil(sendNoonOrderReminder(env, sendWhatsApp).then(result => {
+      if (result.sent || result.error) log('order_reminder', result);
+    }).catch(error => log('order_reminder_failed', { error: String(error.message).slice(0, 160) })));
   }
 };
 

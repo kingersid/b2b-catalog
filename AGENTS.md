@@ -45,8 +45,14 @@ Website and Meta feed stop listing it
 
 ## WhatsApp AI Agent and Meta Commerce
 
-The catalog is also the product source for a basic WhatsApp agent hosted in n8n.
-The agent is live and answers inbound messages sent to the Cloud API number.
+The catalog is also the product source for the WhatsApp agent. As of 2026-09-27,
+`wa-worker/` is the live webhook and reply handler for the Cloud API number.
+The n8n workflow below is retained for rollback; do not run both handlers.
+The Worker also records orders sent from +91 95370 97267, stores marked photos
+in R2, and sends a pending-order reminder at 12:00 PM Asia/Kolkata using the
+`chandni_pending_orders` Meta template outside the 24-hour reply window.
+The template was submitted for review on 2026-09-27; confirm Meta approval
+before relying on reminders outside that window.
 
 ### Live services and identifiers
 
@@ -73,7 +79,7 @@ The production phone and WABA IDs must remain aligned. An inbound webhook includ
 authorization failures; several similarly named legacy/test WABAs exist in the
 business portfolio.
 
-### Working message flow
+### Previous n8n message flow (rollback only)
 
 1. A customer sends a message to `+91 83201 29806`.
 2. Meta sends the `messages` webhook event to the n8n production webhook.
