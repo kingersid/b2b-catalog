@@ -1,7 +1,8 @@
 # Catalog sales details and WhatsApp media
 
-This feature branch adds an admin editor for verified product facts and inbound photo
-and voice-note understanding. It is not deployed by committing this branch.
+The admin editor for verified product facts and inbound photo and voice-note
+understanding was deployed to production on 27 September 2026. The code remains on
+`codex/catalog-metadata-multimodal` until it is merged into `main`.
 
 ## Operator workflow
 
@@ -37,18 +38,19 @@ are unknown. This keeps recommendations running while the catalog is tagged.
   the media ID, type, and interpreted text for conversation context. Meta's retrieval
   URL is authenticated and short-lived.
 
-## Rollout order
+## Deployment and testing
 
-1. Back up production D1 and test the migrations against a local D1 copy.
-2. Apply `migrations/2026-09-27-design-metadata.sql` and
-   `migrations/2026-09-27-wa-media.sql` once to production D1. The media migration
-   uses `ALTER TABLE`, so it is not repeatable.
-3. Deploy the Pages catalog and Worker from this branch through the normal reviewed
-   release process. The Worker has a new `AI` binding for transcription.
-4. Tag several products in `/admin`, then test text, photo, and voice requests on an
-   isolated WhatsApp test number before routing live traffic to the new Worker.
-5. Confirm every recommendation uses an active, positively priced, non-sold-out ID,
-   and verify the Meta feed still contains only its fixed `1 INR` placeholder.
+1. A full production D1 export was saved under the git-ignored `.wrangler/` folder.
+   Both migrations were applied once to production D1. The media migration uses
+   `ALTER TABLE` and must not be run again.
+2. The Pages preview, production Pages site, and Worker were deployed manually from
+   this branch. The Worker has the new `AI` binding for transcription.
+3. Production checks passed for the admin editor, catalog API, Meta feed, Worker
+   health, and webhook authorization. All 36 feed product rows still use `1 INR`.
+4. Product tagging and real inbound text, photo, and voice-note trials remain to be
+   done. Use a team test phone and inspect Worker review/handoff records and the
+   customer replies. Until the branch is merged, a later `main` deployment can
+   overwrite the Pages release.
 
 The protected operator inbox still needs an unattended handoff alert. Until that is
 added, a person must monitor `/admin` for media failures and hot leads.

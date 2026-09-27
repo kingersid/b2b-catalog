@@ -9,7 +9,7 @@ This Worker is the production webhook (since 27 September 2026) for production W
 Current production state (cutover completed 27 September 2026):
 
 1. `wa-worker/schema.sql` is applied to the production `chandni-catalog` D1 database (adds `wa_inbox` and `wa_conversations`).
-2. The Worker is deployed with `wrangler deploy --config wa-worker/wrangler.jsonc`; the Pages catalog is untouched.
+2. The Worker is deployed with `wrangler deploy --config wa-worker/wrangler.jsonc`. The catalog Pages site and metadata editor were also deployed on 27 September 2026.
 3. Secrets are configured: `META_VERIFY_TOKEN`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `KIMI_API_KEY`, and `AGENT_ADMIN_KEY`. Rotate with `wrangler secret put NAME --config wa-worker/wrangler.jsonc` using interactive input; do not put values in command arguments, source, or documentation.
 4. In the Meta app, the `messages` callback on the **WhatsApp Business Account** object points to `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/webhook` with the `messages` field subscribed. The app's **User** object has a separate webhook configuration; only the WABA object carries message events.
 
@@ -28,11 +28,11 @@ The Kimi model is `kimi-k2.6` with thinking disabled, JSON-envelope output (`rep
 - `POST /admin/resume` with the same header and JSON `{ "waId": "91..." }` returns a human-held conversation to bot mode.
 - `wa_inbox.status = 'needs_review'` identifies messages whose Graph send failed or whose processing failed three times. Review these rows before retrying to avoid duplicate customer replies.
 - A cron run every minute retries model/catalog failures. It never automatically repeats a Graph send once sending started.
-- The Worker ignores status events and webhook payloads for other WABA/phone IDs. The currently deployed version sends non-text messages to human handoff; the feature branch processes photos and voice notes while documents and videos still reach a person.
+- The Worker ignores status events and webhook payloads for other WABA/phone IDs. It processes photos and voice notes while documents and videos still reach a person.
 
-The feature branch adds verified product details to the model's catalog context and
-supports inbound customer photos and voice notes. Apply both D1 migrations before
-deploying it; see [Catalog metadata and media](../docs/CATALOG_METADATA_AND_MEDIA.md).
+Verified product details are included in the model's catalog context. Both D1
+migrations were applied in production on 27 September 2026; do not rerun the media
+`ALTER TABLE` migration. See [Catalog metadata and media](../docs/CATALOG_METADATA_AND_MEDIA.md).
 Photo replies use model-selected, code-validated IDs with a fixed introduction. Voice
 notes are transcribed through the new `AI` binding; transcription alone never unlocks
 the B2B price gate. Documents and videos continue to reach a person.

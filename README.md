@@ -56,10 +56,11 @@ catalog data, hosted CRM infrastructure, deterministic product tools, AI evaluat
 human approval, controlled rollout, and order automation remains in
 [docs/WHATSAPP_AI_AGENT_ROADMAP.md](docs/WHATSAPP_AI_AGENT_ROADMAP.md).
 
-The metadata and media feature branch adds verified sales details in `/admin`,
-photo-based matching, and voice-note transcription. See
-[docs/CATALOG_METADATA_AND_MEDIA.md](docs/CATALOG_METADATA_AND_MEDIA.md) for the
-required migrations and rollout order. These branch changes are not live yet.
+The live catalog admin now has verified sales details for each design. The Worker
+uses those facts for recommendations and can interpret customer photos and voice
+notes. See [docs/CATALOG_METADATA_AND_MEDIA.md](docs/CATALOG_METADATA_AND_MEDIA.md)
+for the operator workflow and test status. Product details must be entered by the
+team before the agent can use them; the current **Agent ready** count is zero.
 
 ## Architecture
 
