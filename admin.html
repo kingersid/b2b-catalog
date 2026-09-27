@@ -165,6 +165,10 @@
   }
   .metadata-grid button { background: rgba(52,211,153,0.15); border: 1px solid var(--accent);
     border-radius: 7px; color: var(--accent); padding: 8px; font-weight: 700; cursor: pointer; }
+  .metadata-feedback { margin-top: 6px; font-size: 12px; font-weight: 700; }
+  .metadata-feedback:empty { display: none; }
+  .metadata-feedback.success { color: var(--accent); }
+  .metadata-feedback.error { color: #fca5a5; }
   .ready-tag { color: var(--accent); font-size: 11px; }
   .ready-tag.incomplete { color: var(--accent-2); }
 
@@ -295,6 +299,7 @@
               [['unknown', 'Not checked'], ['available', 'Available'], ['low_stock', 'Low stock'], ['sold_out', 'Sold out']]
                 .map(([value, label]) => '<option value="' + value + '"' + ((design.availability || 'unknown') === value ? ' selected' : '') + '>' + label + '</option>').join('') +
             '</select></label><button type="button" class="save-metadata">Save sales details</button></div></details>' +
+          '<div class="metadata-feedback" role="status" aria-live="polite"></div>' +
         "</div>";
       grid.appendChild(card);
       const input = card.querySelector("input");
@@ -302,11 +307,18 @@
       const msg = card.querySelector(".saved");
       const visibility = card.querySelector(".visibility");
       const saveMetadata = card.querySelector(".save-metadata");
+      const metadataDetails = card.querySelector(".metadata");
+      const metadataFeedback = card.querySelector(".metadata-feedback");
+      card.querySelectorAll("[data-meta]").forEach((field) => {
+        field.addEventListener("input", () => { metadataFeedback.textContent = ""; });
+        field.addEventListener("change", () => { metadataFeedback.textContent = ""; });
+      });
       saveMetadata.addEventListener("click", async () => {
         const values = { designId: design.design_id };
         card.querySelectorAll("[data-meta]").forEach((field) => { values[field.dataset.meta] = field.value.trim(); });
         saveMetadata.disabled = true;
-        msg.textContent = "Saving sales details…";
+        metadataFeedback.className = "metadata-feedback";
+        metadataFeedback.textContent = "Saving sales details…";
         try {
           const response = await fetch(METADATA_API, {
             method: "POST", headers: { "content-type": "application/json", "x-upload-key": keyInput.value.trim() },
@@ -315,12 +327,17 @@
           const result = await response.json();
           if (!response.ok || !result.ok) throw new Error(result.error || "Save failed");
           Object.assign(design, values);
-          msg.textContent = "Sales details saved";
+          metadataDetails.open = false;
+          metadataFeedback.className = "metadata-feedback success";
+          metadataFeedback.textContent = "Thanks for submitting sales details. Saved successfully.";
           const tag = card.querySelector(".ready-tag");
           tag.textContent = isAgentReady(design) ? "Agent ready" : "Needs details";
           tag.classList.toggle("incomplete", !isAgentReady(design));
           updateStats();
-        } catch (error) { msg.textContent = error.message || "Save failed"; }
+        } catch (error) {
+          metadataFeedback.className = "metadata-feedback error";
+          metadataFeedback.textContent = error.message || "Could not save sales details. Please try again.";
+        }
         saveMetadata.disabled = false;
       });
       btn.addEventListener("click", async () => {
