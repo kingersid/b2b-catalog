@@ -424,6 +424,12 @@ async function rememberProfile(env, waId, profile) {
 
 async function processMessage(env, id) {
   const stamp = now();
+  const senderRow = await env.CATALOG_DB.prepare('SELECT wa_id FROM wa_inbox WHERE message_id = ?').bind(id).first();
+  if (senderRow?.wa_id === '919537097267') {
+    const earlier = await env.CATALOG_DB.prepare("SELECT COUNT(*) AS n FROM wa_inbox WHERE wa_id = ? AND rowid < (SELECT rowid FROM wa_inbox WHERE message_id = ?) AND status IN ('pending', 'processing')")
+      .bind(senderRow.wa_id, id).first();
+    if (Number(earlier?.n || 0)) return;
+  }
   const claim = await env.CATALOG_DB.prepare(
     "UPDATE wa_inbox SET status = 'processing', attempts = attempts + 1, lease_until = ? WHERE message_id = ? AND attempts < 3 AND ((status = 'pending' AND available_at <= ?) OR (status = 'processing' AND lease_until < ?))"
   ).bind(stamp + 60, id, stamp, stamp).run();
@@ -599,7 +605,7 @@ async function receiveWebhook(request, env, ctx) {
       }
     }
   }
-  for (const id of accepted) ctx.waitUntil(processMessage(env, id));
+  ctx.waitUntil((async () => { for (const id of accepted) await processMessage(env, id); })());
   return response({ ok: true });
 }
 
