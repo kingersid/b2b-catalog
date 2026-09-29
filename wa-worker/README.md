@@ -74,7 +74,10 @@ only optional MCP source is the separate `MCP_SERVER_URL` sales configuration.
 The private operator chat is on the **Worker origin**, at
 `https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/admin/chat`
 (not the Pages catalog origin). It uses the same admin key but a separate
-general-purpose Kimi prompt and tool loop. It can inspect the existing Notion
+general-purpose prompt and tool loop. Kimi remains the default inference
+provider, while OpenRouter can be selected per chat message with a live model
+picker and a **Free only** filter. This selection does not change WhatsApp
+customer replies, which continue to use Kimi. The operator can inspect the existing Notion
 MCP connection and, when configured, search/extract/map/crawl the public web
 through Tavily's remote MCP server. It can also read a direct public HTTP(S)
 URL supplied in chat, while rejecting local/IP-address targets. Tavily and
@@ -94,6 +97,20 @@ returned to the browser after saving. Alternatively, set the Worker secret
 the production D1 database before deploying this version. The existing Notion
 OAuth refresh token is renewed automatically when its access token expires;
 if renewal fails, reconnect Notion from `/admin`.
+
+To use OpenRouter, select it in the operator chat, enter an OpenRouter API key,
+and click **Connect OpenRouter**. The Worker verifies the key with OpenRouter,
+encrypts it with `AGENT_ADMIN_KEY`, and stores it in `wa_operator_openrouter`.
+The key is never returned to the page. The model picker loads OpenRouter's
+current catalog and shows models that advertise tool calling, with current
+input/output prices. **Free only** shows explicit `:free` variants,
+and the Worker refuses a paid model if free-only is
+selected. The operator's provider, model, and filter choices persist in this
+browser. Alternatively, set the Worker secret `OPENROUTER_API_KEY`; a key saved
+through the page takes precedence. OpenRouter receives the operator's messages
+and any tool results supplied to the model. Apply the new D1 table from
+`schema.sql` before using OpenRouter. OpenRouter may impose separate limits or
+charges; model pricing is shown before selection.
 
 Tavily web access is to public Internet content through Tavily's MCP service,
 subject to its account limits. It is not access to private networks or an

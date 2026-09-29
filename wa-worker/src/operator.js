@@ -1,6 +1,7 @@
 import { callMcpTool, connectMcp } from './mcp.js';
 import { seal, storedMcpConnection, unseal } from './mcp-oauth.js';
 import { fetchPublicPage } from './web.js';
+import { openRouterKey, validateOpenRouterSelection } from './openrouter.js';
 
 const TAVILY_MCP_URL = 'https://mcp.tavily.com/mcp/';
 const MAX_OPERATOR_REPLY = 8000;
@@ -97,8 +98,14 @@ function modelFailure(status, raw) {
   return `Kimi HTTP ${status}`;
 }
 
-export async function answerOperator(env, message, history = [], fetchFn = fetch) {
-  if (!env.KIMI_API_KEY) throw new Error('KIMI_API_KEY is not configured');
+export async function answerOperator(env, message, history = [], fetchFn = fetch, selection = {}) {
+  const provider = selection.provider || 'kimi';
+  if (provider !== 'kimi' && provider !== 'openrouter') throw new Error('Choose Kimi or OpenRouter');
+  const apiKey = provider === 'openrouter' ? await openRouterKey(env) : env.KIMI_API_KEY;
+  if (!apiKey) throw new Error(provider === 'openrouter' ? 'Connect an OpenRouter API key first' : 'KIMI_API_KEY is not configured');
+  const model = provider === 'openrouter'
+    ? validateOpenRouterSelection(selection.model, selection.freeOnly === true)
+    : env.KIMI_MODEL || 'kimi-k2.6';
   const [notionResult, tavilyResult] = await Promise.allSettled([
     storedMcpConnection(env, fetchFn).then(config => config && connectMcp(env, fetchFn, config)),
     connectTavily(env, fetchFn),
@@ -116,23 +123,30 @@ export async function answerOperator(env, message, history = [], fetchFn = fetch
   const timeout = setTimeout(() => controller.abort(), 45000);
   try {
     for (let round = 0; round < 5; round++) {
-      const result = await fetchFn('https://api.moonshot.ai/v1/chat/completions', {
+      const result = await fetchFn(provider === 'openrouter'
+        ? 'https://openrouter.ai/api/v1/chat/completions'
+        : 'https://api.moonshot.ai/v1/chat/completions', {
         method: 'POST', signal: controller.signal,
-        headers: { authorization: `Bearer ${env.KIMI_API_KEY}`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json',
+          ...(provider === 'openrouter' ? { 'HTTP-Referer': 'https://chandni-whatsapp-agent.kinger-siddharth.workers.dev', 'X-OpenRouter-Title': 'Chandni Operator Chat' } : {}) },
         body: JSON.stringify({
-          model: env.KIMI_MODEL || 'kimi-k2.6', thinking: { type: 'disabled' }, max_tokens: 1600,
+          model, ...(provider === 'kimi' ? { thinking: { type: 'disabled' } } : {}), max_tokens: 1600,
           messages, ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
         }),
       });
       const raw = await readLimited(result.body, 65536);
-      if (!result.ok) throw new Error(modelFailure(result.status, raw));
+      if (!result.ok) throw new Error(provider === 'kimi' ? modelFailure(result.status, raw)
+        : result.status === 401 ? 'OpenRouter API key rejected'
+          : result.status === 402 ? 'OpenRouter credits are insufficient'
+            : result.status === 429 ? 'OpenRouter rate limit reached; retry later'
+              : `OpenRouter HTTP ${result.status}`);
       const data = JSON.parse(raw);
       const assistant = data.choices?.[0]?.message || {};
       const calls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls : [];
       if (!calls.length) {
         const reply = String(assistant.content || '').trim().slice(0, MAX_OPERATOR_REPLY);
         if (!reply) throw new Error('Operator agent returned an empty reply');
-        return { reply, tools: used, notionAvailable: Boolean(notion?.tools.length), tavilyAvailable: Boolean(tavily?.tools.length) };
+        return { reply, tools: used, provider, model, notionAvailable: Boolean(notion?.tools.length), tavilyAvailable: Boolean(tavily?.tools.length) };
       }
       if (round === 4) throw new Error('Operator tool round limit reached');
       messages.push({ role: 'assistant', content: assistant.content || null, tool_calls: calls });

@@ -76,6 +76,14 @@ CREATE TABLE IF NOT EXISTS wa_operator_tavily (
   updated_at INTEGER NOT NULL
 );
 
+-- OpenRouter inference is private to operator chat; the key is sealed with
+-- AGENT_ADMIN_KEY before storage and is never included in API responses.
+CREATE TABLE IF NOT EXISTS wa_operator_openrouter (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  api_key TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 -- Migration for existing installs (2026-09-27): buyer-profile memory for the
 -- general-agent persona. Run each line separately; duplicate-column errors are harmless.
 -- ALTER TABLE wa_conversations ADD COLUMN customer_name TEXT;

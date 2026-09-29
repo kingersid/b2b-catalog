@@ -4,6 +4,7 @@ import { handleOwnerOrder, sendNoonOrderReminder } from './orders.js';
 import { callMcpTool, connectMcp, mcpToolDefinitions } from './mcp.js';
 import { beginMcpOAuth, finishMcpOAuth, storedMcpConnection } from './mcp-oauth.js';
 import { answerOperator, operatorToolStatus, saveTavilyKey } from './operator.js';
+import { listOpenRouterModels, openRouterStatus, saveOpenRouterKey } from './openrouter.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const RETRY_SECONDS = [30, 120, 600];
@@ -672,7 +673,9 @@ async function admin(request, env) {
     if (!message) return response({ error: 'Message required' }, 400);
     const historyRows = await env.CATALOG_DB.prepare('SELECT role, content FROM wa_operator_chat_messages WHERE session_id = ? ORDER BY created_at, id DESC LIMIT 20').bind(sessionId).all();
     let result;
-    try { result = await answerOperator(env, message, historyRows.results.reverse()); }
+    try { result = await answerOperator(env, message, historyRows.results.reverse(), fetch, {
+      provider: body.provider, model: body.model, freeOnly: body.freeOnly,
+    }); }
     catch (error) { return response({ error: String(error.message).slice(0, 200) }, 502); }
     const stamp = now();
     await env.CATALOG_DB.prepare('INSERT INTO wa_operator_chat_messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)')
@@ -686,6 +689,18 @@ async function admin(request, env) {
     const body = await request.json().catch(() => ({}));
     try { return response({ tools: await saveTavilyKey(env, body.apiKey) }); }
     catch (error) { return response({ error: String(error.message).slice(0, 200) }, 400); }
+  }
+  if (request.method === 'GET' && url.pathname === '/admin/operator/openrouter/status') {
+    return response(await openRouterStatus(env));
+  }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/openrouter/connect') {
+    const body = await request.json().catch(() => ({}));
+    try { return response(await saveOpenRouterKey(env, body.apiKey)); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 400); }
+  }
+  if (request.method === 'GET' && url.pathname === '/admin/operator/openrouter/models') {
+    try { return response({ models: await listOpenRouterModels(env) }); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 502); }
   }
   if (request.method === 'GET' && url.pathname === '/admin/mcp/status') {
     const connection = await storedMcpConnection(env);

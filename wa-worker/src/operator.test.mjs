@@ -41,6 +41,29 @@ test('operator reports model quota exhaustion clearly', async () => {
   /balance or quota is insufficient/);
 });
 
+test('operator routes a selected OpenRouter model through the same tool loop', async () => {
+  const env = { CATALOG_DB: database(), OPENROUTER_API_KEY: 'test-openrouter-key' };
+  let calls = 0;
+  const result = await answerOperator(env, 'Read a page', [], async (url, options) => {
+    if (url === 'https://example.com/') return new Response('<title>Example</title>', { headers: { 'content-type': 'text/html' } });
+    assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
+    assert.equal(options.headers.authorization, 'Bearer test-openrouter-key');
+    const request = JSON.parse(options.body);
+    assert.equal(request.model, 'vendor/tool-model:free');
+    assert.equal(request.thinking, undefined);
+    calls++;
+    if (calls === 1) return Response.json({ choices: [{ message: { content: null, tool_calls: [
+      { id: 'open-url', type: 'function', function: { name: 'open_web_url', arguments: '{"url":"https://example.com/"}' } },
+    ] } }] });
+    assert.match(request.messages.at(-1).content, /Example/);
+    return Response.json({ choices: [{ message: { content: 'Title: Example — https://example.com/' } }] });
+  }, { provider: 'openrouter', model: 'vendor/tool-model:free', freeOnly: true });
+  assert.equal(result.provider, 'openrouter');
+  assert.equal(result.model, 'vendor/tool-model:free');
+  assert.deepEqual(result.tools, ['web:open_web_url']);
+  assert.equal(calls, 2);
+});
+
 test('operator can open a public URL without Tavily and cite it', async () => {
   const env = { CATALOG_DB: database(), KIMI_API_KEY: 'test-key' };
   let modelCalls = 0;
