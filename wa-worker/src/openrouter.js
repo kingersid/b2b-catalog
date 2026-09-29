@@ -40,6 +40,7 @@ export function validateOpenRouterSelection(model, freeOnly = false) {
   if (typeof model !== 'string' || model.length > 150 || !/^[~a-zA-Z0-9][a-zA-Z0-9._~:-]*\/[a-zA-Z0-9][a-zA-Z0-9._~:-]*$/.test(model)) {
     throw new Error('Choose an OpenRouter model from the picker');
   }
+  if (model.endsWith(':batch')) throw new Error('Batch models are unavailable in live chat');
   if (freeOnly && !isFreeOpenRouterModel(model)) throw new Error('Free-only mode requires a free OpenRouter model');
   return model;
 }
@@ -75,7 +76,7 @@ export async function listOpenRouterModels(env, fetchFn = fetch) {
   if (!response.ok) throw new Error(response.status === 401 ? 'OpenRouter API key rejected' : `OpenRouter models HTTP ${response.status}`);
   const data = JSON.parse(raw);
   if (!Array.isArray(data.data)) throw new Error('OpenRouter returned an invalid model list');
-  return data.data.filter(model => typeof model.id === 'string' && Array.isArray(model.supported_parameters)
+  return data.data.filter(model => typeof model.id === 'string' && !model.id.endsWith(':batch') && Array.isArray(model.supported_parameters)
     && model.supported_parameters.includes('tools'))
     .map(model => ({
       id: model.id,

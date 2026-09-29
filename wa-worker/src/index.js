@@ -5,6 +5,9 @@ import { callMcpTool, connectMcp, mcpToolDefinitions } from './mcp.js';
 import { beginMcpOAuth, finishMcpOAuth, storedMcpConnection } from './mcp-oauth.js';
 import { answerOperator, operatorToolStatus, saveTavilyKey } from './operator.js';
 import { listOpenRouterModels, openRouterStatus, saveOpenRouterKey } from './openrouter.js';
+import { confirmWhatsAppTemplate, paymentTemplateStatus, pendingWhatsAppTemplates, submitPaymentTemplate } from './whatsapp-templates.js';
+import { confirmSarvamAction, pendingSarvamActions, sarvamConnection, sarvamModelTools } from './sarvam-mcp.js';
+import { confirmSarvamRest, pendingSarvamRest, saveSarvamRestKey, sarvamRestStatus } from './sarvam-rest.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const RETRY_SECONDS = [30, 120, 600];
@@ -484,7 +487,35 @@ async function processMessage(env, id) {
   let sendStarted = false;
   try {
     if (row.wa_id === '919537097267') {
-      const outcome = await handleOwnerOrder(env, row, { downloadMedia: downloadCustomerMedia });
+      if (row.media_kind === 'image' || row.media_kind === 'audio') {
+        const outcome = await handleOwnerOrder(env, row, { downloadMedia: downloadCustomerMedia });
+        if (outcome?.text) { await mark(env, id, 'sending'); sendStarted = true; await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: outcome.text } }); }
+        await mark(env, id, 'done', outcome?.text || 'Order item saved'); return;
+      }
+      const ownerSession = 'owner_919537097267';
+      const historyRows = await env.CATALOG_DB.prepare('SELECT role, content FROM wa_operator_chat_messages WHERE session_id = ? ORDER BY created_at, id DESC LIMIT 20').bind(ownerSession).all();
+      const { customerText, image } = await interpretInboundMedia(env, row);
+      let result;
+      try {
+        result = await answerOperator(env, customerText, historyRows.results.reverse(), fetch, {
+          provider: 'openrouter', model: env.OPERATOR_MODEL || 'openai/gpt-5.6-luna', freeOnly: false,
+          sessionId: ownerSession, ownerRow: row, downloadCustomerMedia: downloadCustomerMedia,
+        });
+      } catch (error) {
+        // Keep the owner path reliable if operator inference is unavailable.
+        const outcome = await handleOwnerOrder(env, row, { downloadMedia: downloadCustomerMedia });
+        result = { reply: outcome?.text || 'Order note saved.', pendingActions: [] };
+      }
+      await env.CATALOG_DB.prepare('INSERT INTO wa_operator_chat_messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)')
+        .bind(ownerSession, 'user', customerText, stamp, ownerSession, 'assistant', result.reply, stamp).run();
+      if (result.reply) {
+        await mark(env, id, 'sending');
+        sendStarted = true;
+        await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: result.reply } });
+      }
+      await mark(env, id, 'done', result.reply || 'Processed');
+      return;
+      /* legacy direct order path retained below for rollback reference
       if (outcome?.text) {
         await mark(env, id, 'sending');
         sendStarted = true;
@@ -495,7 +526,7 @@ async function processMessage(env, id) {
         }
       }
       await mark(env, id, 'done', outcome?.text || 'Order item saved');
-      return;
+      return; */
     }
     const conversation = await env.CATALOG_DB.prepare('SELECT * FROM wa_conversations WHERE wa_id = ?').bind(row.wa_id).first();
     if (conversation?.mode !== 'bot') { await mark(env, id, 'ignored'); return; }
@@ -665,6 +696,55 @@ async function admin(request, env) {
     const { results } = await env.CATALOG_DB.prepare('SELECT role, content, created_at FROM wa_operator_chat_messages WHERE session_id = ? ORDER BY created_at, id LIMIT 100').bind(sessionId).all();
     return response({ messages: results });
   }
+  if (request.method === 'GET' && url.pathname === '/admin/chat/pending') {
+    const sessionId = String(url.searchParams.get('sessionId') || '');
+    if (!/^[A-Za-z0-9_-]{8,80}$/.test(sessionId)) return response({ error: 'Invalid session' }, 400);
+    return response({ drafts: await pendingWhatsAppTemplates(env, sessionId), sarvamActions: await pendingSarvamActions(env, sessionId), sarvamRestActions: await pendingSarvamRest(env, sessionId) });
+  }
+  if (request.method === 'GET' && url.pathname === '/admin/operator/sarvam/status') {
+    try {
+      const connection = await storedMcpConnection(env, fetch, 2);
+      const tools = connection ? sarvamModelTools(await sarvamConnection(env)).map(tool => tool.name) : [];
+      return response({ connected: Boolean(connection), expiresAt: connection?.expiresAt || null, tools });
+    } catch (error) { return response({ connected: false, error: String(error.message).slice(0, 160), tools: [] }); }
+  }
+  if (request.method === 'GET' && url.pathname === '/admin/operator/sarvam/rest/status') return response(await sarvamRestStatus(env));
+  if (request.method === 'POST' && url.pathname === '/admin/operator/sarvam/rest/connect') { const body=await request.json().catch(()=>({})); try{return response(await saveSarvamRestKey(env,body.apiKey));}catch(e){return response({error:String(e.message).slice(0,200)},400);} }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/sarvam/rest/confirm') { const body=await request.json().catch(()=>({})); try{return response(await confirmSarvamRest(env,String(body.actionId||'')));}catch(e){return response({error:String(e.message).slice(0,200)},409);} }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/sarvam/oauth/start') {
+    try { return response({ url: await beginMcpOAuth(env, request, {
+      serverUrl: 'https://mcp.sarvam.ai/voice-agents',
+      clientId: '46bf1744-3030-443f-ae77-5c3211b704fc',
+      redirectUri: 'http://127.0.0.1:17349/sarvam/callback', allowedTools: '' }) }); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 400); }
+  }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/sarvam/oauth/finish') {
+    const body = await request.json().catch(() => ({}));
+    try {
+      const callback = new URL(String(body.callbackUrl || ''));
+      if (callback.origin !== 'http://127.0.0.1:17349' || callback.pathname !== '/sarvam/callback')
+        throw new Error('Paste the final 127.0.0.1 Sarvam callback URL');
+      return response({ serverUrl: await finishMcpOAuth(env, new Request(callback.href)) });
+    } catch (error) { return response({ error: String(error.message).slice(0, 200) }, 400); }
+  }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/sarvam/confirm') {
+    const body = await request.json().catch(() => ({}));
+    try { return response(await confirmSarvamAction(env, String(body.actionId || ''))); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 409); }
+  }
+  if (request.method === 'GET' && url.pathname === '/admin/operator/whatsapp/template/status') {
+    try { return response(await paymentTemplateStatus(env)); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 502); }
+  }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/whatsapp/template/submit') {
+    try { return response(await submitPaymentTemplate(env)); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 502); }
+  }
+  if (request.method === 'POST' && url.pathname === '/admin/operator/whatsapp/confirm') {
+    const body = await request.json().catch(() => ({}));
+    try { return response(await confirmWhatsAppTemplate(env, body.draftId, body.optInConfirmed === true)); }
+    catch (error) { return response({ error: String(error.message).slice(0, 200) }, 409); }
+  }
   if (request.method === 'POST' && url.pathname === '/admin/chat/message') {
     const body = await request.json().catch(() => ({}));
     const sessionId = String(body.sessionId || '');
@@ -674,7 +754,7 @@ async function admin(request, env) {
     const historyRows = await env.CATALOG_DB.prepare('SELECT role, content FROM wa_operator_chat_messages WHERE session_id = ? ORDER BY created_at, id DESC LIMIT 20').bind(sessionId).all();
     let result;
     try { result = await answerOperator(env, message, historyRows.results.reverse(), fetch, {
-      provider: body.provider, model: body.model, freeOnly: body.freeOnly,
+      provider: body.provider, model: body.model, freeOnly: body.freeOnly, sessionId,
     }); }
     catch (error) { return response({ error: String(error.message).slice(0, 200) }, 502); }
     const stamp = now();

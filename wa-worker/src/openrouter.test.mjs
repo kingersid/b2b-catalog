@@ -12,6 +12,7 @@ test('free-only selection accepts only explicit free variants', () => {
   assert.equal(validateOpenRouterSelection('vendor/model:free', true), 'vendor/model:free');
   assert.throws(() => validateOpenRouterSelection('vendor/paid', true), /Free-only/);
   assert.throws(() => validateOpenRouterSelection('https://bad.example/', false), /picker/);
+  assert.throws(() => validateOpenRouterSelection('vendor/model:batch', false), /Batch models/);
 });
 
 test('OpenRouter key is verified before encrypted D1 storage', async () => {
@@ -34,6 +35,7 @@ test('OpenRouter model catalog includes only tool-capable models with prices', a
     return Response.json({ data: [
       { id: 'vendor/agent:free', name: 'Free Agent', supported_parameters: ['tools'], pricing: { prompt: '0', completion: '0' }, context_length: 32000 },
       { id: 'vendor/agent', name: 'Paid Agent', supported_parameters: ['tools'], pricing: { prompt: '0.000001', completion: '0.000002' } },
+      { id: 'vendor/agent:batch', name: 'Batch only', supported_parameters: ['tools'], pricing: { prompt: '0.000001', completion: '0.000002' } },
       { id: 'vendor/plain', name: 'Plain', supported_parameters: ['temperature'], pricing: { prompt: '0', completion: '0' } },
     ] });
   });

@@ -41,6 +41,28 @@ test('operator reports model quota exhaustion clearly', async () => {
   /balance or quota is insufficient/);
 });
 
+test('operator retries an empty model response as plain text', async () => {
+  const env = { CATALOG_DB: database(), OPENROUTER_API_KEY: 'test-key' };
+  let calls = 0;
+  const result = await answerOperator(env, 'What details do you need?', [], async (_url, options) => {
+    const request = JSON.parse(options.body);
+    calls++;
+    if (calls === 1) return Response.json({ choices: [{ finish_reason: 'length', message: { content: null } }] });
+    assert.equal(request.tool_choice, 'none');
+    assert.equal(request.max_tokens, 2400);
+    return Response.json({ choices: [{ message: { content: 'Please provide the customer name.' } }] });
+  }, { provider: 'openrouter', model: 'vendor/tool-model:free', freeOnly: true });
+  assert.equal(result.reply, 'Please provide the customer name.');
+  assert.equal(calls, 2);
+});
+
+test('persistent empty response names the selected model', async () => {
+  const env = { CATALOG_DB: database(), OPENROUTER_API_KEY: 'test-key' };
+  await assert.rejects(() => answerOperator(env, 'Hello', [], async () =>
+    Response.json({ choices: [{ message: { content: null } }] }),
+  { provider: 'openrouter', model: 'vendor/tool-model:free', freeOnly: true }), /vendor\/tool-model:free returned no text/);
+});
+
 test('operator routes a selected OpenRouter model through the same tool loop', async () => {
   const env = { CATALOG_DB: database(), OPENROUTER_API_KEY: 'test-openrouter-key' };
   let calls = 0;
@@ -100,7 +122,8 @@ test('Tavily MCP tools are available in operator mode via bearer secret', async 
     }
     modelCalls++;
     const body = JSON.parse(options.body);
-    assert.equal(body.tools.length, 2);
+    assert.equal(body.tools.length, 3);
+    assert.ok(body.tools.some(tool => tool.function.name === 'WHATSAPP_API_MESSAGE'));
     if (modelCalls === 1) return Response.json({ choices: [{ message: { content: null, tool_calls: [
       { id: 'call-1', type: 'function', function: { name: body.tools.find(tool => tool.function.name.startsWith('tavily_')).function.name, arguments: '{"query":"fabric trends"}' } },
     ] } }] });

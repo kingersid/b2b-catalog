@@ -488,3 +488,102 @@ The "Book a video call" CTA is powered by the **Chandni Silk Mills Business OS**
 | `backup-business-os-2026-08-31` | Aug 31 2026 |
 
 Feature branch: `feat/video-call-booking` in both repos.
+
+## CRM automation roadmap (TODO)
+
+This is the working checklist for turning the WhatsApp operator into a lightweight
+CRM. The fresh Notion database has **not** been created yet, and the production
+Worker still needs its Notion connection, migration, and deployment.
+
+### Fresh Notion database: `Chandni Orders`
+
+Create one database with these properties:
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Order ID | Title | Stable human-readable order reference |
+| Customer name | Text | Buyer or firm contact |
+| WhatsApp number | Phone | E.164 number used for replies |
+| Firm / city | Text | Customer context |
+| Products | Text | Design names, quantities, and notes |
+| Order date | Date | Date the order was noted |
+| Payment status | Select | `Pending`, `Part paid`, `Paid`, `Overdue`, `Unknown` |
+| Dispatch status | Select | `Not ready`, `Packed`, `Dispatched`, `Delivered`, `Hold` |
+| Order status | Select | `New`, `Confirmed`, `Processing`, `Complete`, `Cancelled` |
+| Amount due | Number | Outstanding amount in INR |
+| Next action | Date | When the next follow-up should happen |
+| Notes | Text | Human edits and conversation context |
+| Last contact | Date | Last WhatsApp or call activity |
+| Source message ID | Text | Idempotency key for webhook retries |
+
+Recommended views: **Today**, **Payment pending**, **Overdue**, **Ready to dispatch**,
+**Needs review**, and **Completed**.
+
+### Implementation checklist
+
+- [ ] Create the `Chandni Orders` Notion database and save its database ID as a Worker secret.
+- [ ] Give the Notion integration access to the database.
+- [ ] Add an idempotent order upsert keyed by `Source message ID` or `Order ID`.
+- [ ] Route owner messages through the operator agent, with explicit `note order` as the order action.
+- [ ] Write new orders and edits to Notion while keeping the operator reply short and clear.
+- [ ] Add status-triggered WhatsApp and Sarvam action drafts, with human approval before sending or calling.
+- [ ] Persist WhatsApp delivery results and Sarvam call outcomes back to the order page.
+- [ ] Deploy the Worker migration and test one order from WhatsApp through Notion and back.
+
+### Useful CRM automations
+
+1. **Idempotent order capture.** Extract the order once, show a confirmation summary,
+   and update the same Notion page when the customer adds quantities or changes a design.
+2. **Status playbooks.** `Payment pending` creates a WhatsApp reminder draft;
+   `Overdue` creates a Sarvam payment-timing call draft; `Paid` creates a dispatch
+   checklist; `Dispatched` creates a tracking confirmation draft.
+3. **Human-in-the-loop outbound queue.** Put every outbound WhatsApp message and
+   voice call into a review queue with recipient, template variables, reason, and expiry.
+   Approval prevents duplicate or accidental calls.
+4. **Next-action timers.** Set `Next action` whenever an order is created or contacted.
+   A scheduled Worker job can surface due items each morning and group them by customer.
+5. **Conversation memory with confidence.** Store the exact customer message and a
+   confidence level. Low-confidence extraction goes to **Needs review** instead of
+   silently changing an order.
+6. **Two-way reconciliation.** After WhatsApp delivery, reply, call completion, or
+   call failure, append a short event to `Notes`, update `Last contact`, and move the
+   status only when the result is known.
+7. **Duplicate and consent guardrails.** Suppress repeated reminders inside a cooldown
+   window, respect opt-outs, and require a valid E.164 number before any outbound action.
+8. **Daily control-tower digest.** Send the owner one compact morning summary: new
+   orders, overdue payments, calls awaiting approval, failed deliveries, and orders with
+   no next action.
+
+### Isolated agent terminal (TODO)
+
+Add a Cloudflare Sandbox execution environment so the owner agent can run general
+Node.js and Python scripts without accessing a personal computer or the Worker runtime.
+The Sandbox SDK requires a compatible package and container image, Docker for the first
+build, and a Cloudflare Workers Paid plan. Keep this work separate from the Worker until
+those prerequisites are available.
+
+Security requirements:
+
+- [ ] Expose execution only to the authenticated owner/operator session.
+- [ ] Use a stable per-owner sandbox ID and an isolated filesystem.
+- [ ] Enforce a short timeout, output-size limit, and command-length limit.
+- [ ] Keep Worker secrets out of the sandbox environment.
+- [ ] Record command, timestamp, exit code, and truncated output in an audit log.
+- [ ] Require confirmation before scripts can change production data or send messages.
+
+Potential use cases:
+
+- Generate daily pending-payment, dispatch, and sales reports from D1 exports.
+- Clean, merge, validate, and format customer/order CSV files before importing them.
+- Reconcile WhatsApp delivery events, Sarvam call results, and Notion order pages.
+- Calculate follow-up priorities, overdue buckets, customer totals, and sales summaries.
+- Prepare approved WhatsApp template variables and Sarvam campaign cohorts for review.
+- Run data-quality checks for missing phone numbers, duplicate orders, or invalid statuses.
+- Create one-off product, pricing, or catalog analysis with Python and pandas.
+- Run regression checks against the Worker’s order and messaging logic after changes.
+- Transform customer-provided spreadsheets into the Notion import format.
+- Produce a downloadable report or chart for the owner without exposing database credentials.
+
+The first release should support general `node` and `python` scripts inside the isolated
+Sandbox, while keeping outbound WhatsApp, Sarvam, Notion, and production database writes
+behind explicit operator confirmation.
