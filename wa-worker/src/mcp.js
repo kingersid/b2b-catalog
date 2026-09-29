@@ -1,5 +1,6 @@
 const MAX_TOOL_COUNT = 100;
 const MAX_TOOL_OUTPUT = 6000;
+const MAX_MCP_RESPONSE = 256 * 1024;
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 function toolAllowlist(value) {
@@ -7,8 +8,24 @@ function toolAllowlist(value) {
 }
 
 async function readMcpResponse(response) {
-  const raw = await response.text();
   if (!response.ok) throw new Error(`MCP HTTP ${response.status}`);
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_MCP_RESPONSE) throw new Error('MCP response too large');
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const data = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.byteLength; }
+  const raw = new TextDecoder().decode(data);
   if (!raw.trim()) return null;
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('text/event-stream')) {

@@ -136,6 +136,22 @@ test('Kimi persona request carries profile, designs, and history', async () => {
   assert.equal(decision.profile.b2b, 'yes');
 });
 
+test('private Notion and Tavily connections are not exposed to WhatsApp customers', async () => {
+  const guardedEnv = {
+    KIMI_API_KEY: 'test-key', TAVILY_API_KEY: 'tvly-private',
+    CATALOG_DB: { prepare() { throw new Error('Customer path must not read private MCP settings'); } },
+  };
+  await decide(guardedEnv, 'List my Notion workspace', [], [], { b2b: 'unknown' }, async (url, options) => {
+    assert.equal(url, 'https://api.moonshot.ai/v1/chat/completions');
+    const body = JSON.parse(options.body);
+    assert.equal(body.tools, undefined);
+    assert.match(body.messages[0].content, /operator web tools are private/);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({
+      reply: 'I cannot access the private workspace from WhatsApp. Which fabric do you need?', design_ids: [], handoff: false,
+    }) } }] });
+  });
+});
+
 test('MCP discovery and tool calls are allowlisted and bounded', async () => {
   const calls = [];
   const mcp = await connectMcp({

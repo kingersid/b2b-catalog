@@ -60,18 +60,45 @@ failures are returned to the model as bounded errors; if discovery fails, the
 existing sales flow continues without tools. MCP output is treated as data and
 does not override the code-side price, handoff, link, or WhatsApp-send guards.
 
-The `/admin` page also has an MCP connection panel. Enter the MCP server URL,
+The `/admin` page also has an MCP connection panel for the private operator.
+Enter the MCP server URL,
 OAuth client ID, optional client secret, and exact comma-separated tool names,
 then click **Connect MCP**. The Worker uses Authorization Code + PKCE, opens
 the provider authorization page in a popup, validates the callback state, and
 stores encrypted access/refresh tokens in D1. Add the callback URL shown by the
 page to the OAuth client configuration. Apply the new `wa_mcp_oauth_pending`
 and `wa_mcp_connections` tables from `schema.sql` before using this panel.
+This admin-connected workspace is **not** offered to WhatsApp customers; their
+only optional MCP source is the separate `MCP_SERVER_URL` sales configuration.
 
-The private operator chat is available at `/admin/chat`. It uses the same admin
-key, catalog context, Kimi loop, and connected MCP tools as WhatsApp, but stores
-only browser-session messages in `wa_operator_chat_messages` and never sends a
-WhatsApp message.
+The private operator chat is on the **Worker origin**, at
+`https://chandni-whatsapp-agent.kinger-siddharth.workers.dev/admin/chat`
+(not the Pages catalog origin). It uses the same admin key but a separate
+general-purpose Kimi prompt and tool loop. It can inspect the existing Notion
+MCP connection and, when configured, search/extract/map/crawl the public web
+through Tavily's remote MCP server. It can also read a direct public HTTP(S)
+URL supplied in chat, while rejecting local/IP-address targets. Tavily and
+direct-web tools are never added to the
+customer WhatsApp loop. Operator replies can include links and are not put
+through the sales reply sanitizer. Chat messages are stored by browser session
+in `wa_operator_chat_messages`; no WhatsApp message is sent.
+
+On the chat page, enter the admin key and click **Connect**. To enable web
+tools, enter a Tavily MCP URL containing `tavilyApiKey` (or the key alone) in
+the separate field and click **Connect Tavily MCP**. The Worker extracts the
+key, authenticates to Tavily's remote MCP with a bearer header rather than a
+credential-bearing URL, verifies tool discovery, encrypts it with
+`AGENT_ADMIN_KEY`, and stores it in `wa_operator_tavily` in D1. The key is not
+returned to the browser after saving. Alternatively, set the Worker secret
+`TAVILY_API_KEY`; the admin-page key takes precedence. Apply `schema.sql` to
+the production D1 database before deploying this version. The existing Notion
+OAuth refresh token is renewed automatically when its access token expires;
+if renewal fails, reconnect Notion from `/admin`.
+
+Tavily web access is to public Internet content through Tavily's MCP service,
+subject to its account limits. It is not access to private networks or an
+unrestricted browser runtime. Web and workspace content is treated as
+untrusted data, not instructions.
 
 Use MCP for read-only capabilities first, such as product search, CRM context,
 or delivery-area lookup. Keep order placement, payment, price changes, and

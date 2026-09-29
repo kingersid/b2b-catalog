@@ -117,8 +117,45 @@ export async function finishMcpOAuth(env, request, fetchFn = fetch) {
   return pending.server_url;
 }
 
-export async function storedMcpConnection(env) {
+export async function storedMcpConnection(env, fetchFn = fetch) {
   const row = await env.CATALOG_DB.prepare('SELECT * FROM wa_mcp_connections WHERE id = 1').first();
   if (!row) return null;
-  return { serverUrl: row.server_url, token: await unseal(row.access_token, env.AGENT_ADMIN_KEY), clientId: row.client_id, expiresAt: row.expires_at, allowedTools: row.allowed_tools || '' };
+  let current = row;
+  const now = Math.floor(Date.now() / 1000);
+  if (row.expires_at && Number(row.expires_at) <= now + 90) {
+    if (!row.refresh_token) throw new Error('Workspace MCP login expired; reconnect it in the admin inbox');
+    const { tokenEndpoint } = await discoverOAuth(row.server_url, fetchFn);
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: await unseal(row.refresh_token, env.AGENT_ADMIN_KEY),
+      client_id: row.client_id,
+      resource: row.server_url,
+    });
+    const clientSecret = await unseal(row.client_secret, env.AGENT_ADMIN_KEY);
+    if (clientSecret) body.set('client_secret', clientSecret);
+    const result = await fetchFn(tokenEndpoint, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const token = await result.json().catch(() => ({}));
+    if (!result.ok || !token.access_token) {
+      // A concurrent request may have rotated this one-time refresh token.
+      const latest = await env.CATALOG_DB.prepare('SELECT * FROM wa_mcp_connections WHERE id = 1').first();
+      if (!latest || latest.access_token === row.access_token) throw new Error('Workspace MCP token refresh failed; reconnect it in the admin inbox');
+      current = latest;
+    } else {
+      const accessToken = await seal(token.access_token, env.AGENT_ADMIN_KEY);
+      const refreshToken = token.refresh_token ? await seal(token.refresh_token, env.AGENT_ADMIN_KEY) : row.refresh_token;
+      const expiresAt = token.expires_in ? now + Number(token.expires_in) : null;
+      const updated = await env.CATALOG_DB.prepare(`UPDATE wa_mcp_connections
+        SET access_token = ?, refresh_token = ?, token_type = ?, expires_at = ?, updated_at = ?
+        WHERE id = 1 AND access_token = ?`)
+        .bind(accessToken, refreshToken, token.token_type || 'Bearer', expiresAt, now, row.access_token).run();
+      current = updated.meta?.changes
+        ? { ...row, access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt }
+        : await env.CATALOG_DB.prepare('SELECT * FROM wa_mcp_connections WHERE id = 1').first();
+    }
+  }
+  return { serverUrl: current.server_url, token: await unseal(current.access_token, env.AGENT_ADMIN_KEY), clientId: current.client_id, expiresAt: current.expires_at, allowedTools: current.allowed_tools || '' };
 }
