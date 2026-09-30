@@ -960,12 +960,12 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   <button class="close-btn" id="book-close" aria-label="Close">✕</button>
   <div class="card">
     <h2>📞 Book a Video Call</h2>
-    <p class="sub" id="book-sub">We'll assign the next available slot tomorrow from 12 PM onwards.</p>
+    <p class="sub" id="book-sub">We'll assign the next available slot tomorrow from 12 PM onwards. Enter the WhatsApp number you use so we can confirm your business needs and timing.</p>
     <form id="book-form">
       <label for="b-name">Your name *</label>
       <input id="b-name" required placeholder="e.g. Priya Sharma" />
       <label for="b-phone">Phone (WhatsApp) *</label>
-      <input id="b-phone" required type="tel" placeholder="9876543210" />
+      <input id="b-phone" required type="tel" inputmode="tel" autocomplete="tel" placeholder="9876543210" />
       <label for="b-email">Email (optional)</label>
       <input id="b-email" type="email" placeholder="you@example.com" />
       <input type="hidden" id="b-design" />
@@ -1801,7 +1801,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   }
   // Hearts bound after designs load (see initDetail)
 
-  const BOOK_CALL_URL = "https://chandni-business-os.kinger-siddharth.workers.dev/api/book-call";
+  const BOOK_CALL_URL = "/api/book-call";
   const bookModal = document.getElementById("book-modal");
   const bookForm = document.getElementById("book-form");
   const bookBtn = document.getElementById("book-btn");
@@ -1847,11 +1847,25 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
       const d = await r.json();
       if (d.success) {
         const t = d.startTime || "";
-        const date = t.slice(5, 10);
-        const time = t.slice(11, 16);
+        const hasZone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(t);
+        const parsed = new Date(t);
+        const slot = hasZone && !Number.isNaN(parsed.getTime())
+          ? new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true }).format(parsed)
+          : t.replace("T", " ");
         bookMsg.className = "book-msg ok";
         bookMsg.style.display = "block";
-        bookMsg.innerHTML = "✅ <strong>Slot booked!</strong><br>We'll call you on <strong>" + date + "</strong> at <strong>" + time + "</strong> IST.<br>Questions? WhatsApp: <a href=\"https://wa.me/919537097267\" style=\"color:var(--accent)\">+91 9537 097 267</a>";
+        bookMsg.textContent = `✅ Slot booked for ${slot} IST. `;
+        if (d.whatsappReady && d.code) {
+          const link = document.createElement("a");
+          link.href = "https://wa.me/918320129806?text=" + encodeURIComponent("नमस्ते, मैंने वीडियो कॉल बुक की है। मेरा बुकिंग कोड " + d.code);
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.style.color = "var(--accent)";
+          link.textContent = "Continue on WhatsApp to confirm your business needs and time";
+          bookMsg.append(link);
+        } else {
+          bookMsg.append(" Questions? WhatsApp us at +91 83201 29806.");
+        }
         bookForm.reset();
         bDesign.value = "";
       } else {

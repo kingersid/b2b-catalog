@@ -1,5 +1,6 @@
 import { ADMIN_HTML, CHAT_HTML } from './admin.js';
 import { Buffer } from 'node:buffer';
+import { bookedCallForMessage, bookingReply } from './booking.js';
 import { handleOwnerOrder, sendNoonOrderReminder } from './orders.js';
 import { callMcpTool, connectMcp, mcpToolDefinitions } from './mcp.js';
 import { beginMcpOAuth, finishMcpOAuth, storedMcpConnection } from './mcp-oauth.js';
@@ -261,6 +262,9 @@ GOAL (in this order)
 2. Politely learn whether they are a wholesale buyer: shop owner, boutique, reseller, manufacturer, or buying in bulk. Ask their city and their business naturally, one question per turn, like a real shop conversation.
 3. Show matching designs via design_ids once you know what they want.
 4. Invite them to the free WhatsApp community for daily new designs and rates. This is REQUIRED on a customer's first chat with us (the history you receive is empty): invite them naturally, exactly once, and set community=true so the system attaches the link. For returning customers, mention the community again only if they ask about new designs or updates.
+
+VIDEO CALL BOOKINGS
+- If recent history shows that the customer opened a booked video call, use their answer to the bulk/business-use and timing questions. For personal use, politely explain our 20 metres per design wholesale minimum. If the booked time is inconvenient, ask which time works and set handoff=true so the team can reschedule the calendar event. Never claim to have changed an event yourself.
 
 PRIVATE WORKSPACE
 - The shop's Notion workspace and operator web tools are private. They are not available in customer WhatsApp conversations. Never claim to have inspected them or disclose their contents.
@@ -543,6 +547,22 @@ async function processMessage(env, id) {
     if (basic?.kind === 'optout') {
       await env.CATALOG_DB.prepare("UPDATE wa_conversations SET mode = 'optout', updated_at = ? WHERE wa_id = ?").bind(now(), row.wa_id).run();
       await mark(env, id, 'done', 'Opted out');
+      return;
+    }
+
+    const booking = await bookedCallForMessage(env, customerText, row.wa_id);
+    if (booking) {
+      const reply = bookingReply(booking);
+      await rememberProfile(env, row.wa_id, { name: booking.customer_name });
+      await mark(env, id, 'sending');
+      sendStarted = true;
+      try {
+        await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: reply } });
+      } catch (error) {
+        await mark(env, id, 'needs_review', null, String(error.message).slice(0, 200));
+        return;
+      }
+      await mark(env, id, 'done', reply);
       return;
     }
 

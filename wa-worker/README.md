@@ -21,6 +21,10 @@ The Kimi model is `kimi-k2.6` with thinking disabled, JSON-envelope output (`rep
 
 ## Operations
 
+### Catalog video-call bookings
+
+The catalog's `/api/book-call` form requires a WhatsApp number, forwards the booking to the existing Business OS calendar service, and stores the assigned slot and normalized number in the shared D1 `video_call_bookings` table. After booking, the customer taps **Continue on WhatsApp** to send a booking code to the production agent number (`+91 83201 29806`). The Worker checks that the inbound WhatsApp number matches the form before replying in Hindi with the wholesale qualification question and the actual booked time. A customer who needs another time is handed to the team for calendar rescheduling. The form alone does not start a WhatsApp conversation; proactive messages outside an open customer conversation require an approved Meta template.
+
 - Open `/admin` in a browser and enter `AGENT_ADMIN_KEY` to watch handoffs and send failures. The key stays in page memory and must be entered again after reload.
 - After connecting, click **Test Kimi and Meta connections**. It checks the current catalog, asks Kimi for a sample decision, and confirms the Meta token can see the production phone. It does not send a WhatsApp message.
 - `GET /admin/handoffs` with header `x-agent-admin-key` lists conversations awaiting a person. Check this list regularly; the Worker does not yet send an operator alert.

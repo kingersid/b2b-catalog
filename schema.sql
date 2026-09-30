@@ -79,3 +79,13 @@ CREATE TABLE IF NOT EXISTS design_metadata (
   keywords TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Video calls created by the Business OS calendar endpoint. The code links a
+-- customer-initiated WhatsApp message to the form phone without exposing it.
+CREATE TABLE IF NOT EXISTS video_call_bookings (
+  code TEXT PRIMARY KEY,
+  wa_id TEXT NOT NULL,
+  customer_name TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
