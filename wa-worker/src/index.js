@@ -1,7 +1,7 @@
 import { ADMIN_HTML, CHAT_HTML } from './admin.js';
 import { Buffer } from 'node:buffer';
 import { bookedCallForMessage, bookingReply } from './booking.js';
-import { handleOwnerOrder, sendNoonOrderReminder } from './orders.js';
+import { handleOwnerOrder, sendNoonOrderReminder, orderIntent } from './orders.js';
 import { callMcpTool, connectMcp, mcpToolDefinitions } from './mcp.js';
 import { beginMcpOAuth, finishMcpOAuth, storedMcpConnection } from './mcp-oauth.js';
 import { answerOperator, operatorToolStatus, saveTavilyKey } from './operator.js';
@@ -9,6 +9,8 @@ import { listOpenRouterModels, openRouterStatus, saveOpenRouterKey } from './ope
 import { confirmWhatsAppTemplate, paymentTemplateStatus, pendingWhatsAppTemplates, submitPaymentTemplate } from './whatsapp-templates.js';
 import { confirmSarvamAction, pendingSarvamActions, sarvamConnection, sarvamModelTools } from './sarvam-mcp.js';
 import { confirmSarvamRest, pendingSarvamRest, saveSarvamRestKey, sarvamRestStatus } from './sarvam-rest.js';
+import { configureCrm, crmOverview, updateCrmOrder, syncCrm, crmMaintenance, prepareCrmAction, recordCrmEvent, crmWorkspaceCall, createCrmViews } from './crm.js';
+import { stageTerminal, confirmTerminal } from './terminal.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 const RETRY_SECONDS = [30, 120, 600];
@@ -491,9 +493,9 @@ async function processMessage(env, id) {
   let sendStarted = false;
   try {
     if (row.wa_id === '919537097267') {
-      if (row.media_kind === 'image' || row.media_kind === 'audio') {
+      if (row.media_kind === 'image' || row.media_kind === 'audio' || orderIntent(row.body).kind!=='append') {
         const outcome = await handleOwnerOrder(env, row, { downloadMedia: downloadCustomerMedia });
-        if (outcome?.text) { await mark(env, id, 'sending'); sendStarted = true; await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: outcome.text } }); }
+        if (outcome?.text) { await mark(env, id, 'sending'); sendStarted = true; const graphId=await sendWhatsApp(env, { messaging_product: 'whatsapp', to: row.wa_id, type: 'text', text: { body: outcome.text } });if(outcome.orderId)await env.CATALOG_DB.prepare('INSERT OR IGNORE INTO wa_order_outbound(graph_message_id,order_id,sent_at) VALUES(?,?,?)').bind(graphId,outcome.orderId,now()).run(); }
         await mark(env, id, 'done', outcome?.text || 'Order item saved'); return;
       }
       const ownerSession = 'owner_919537097267';
@@ -674,6 +676,10 @@ async function receiveWebhook(request, env, ctx) {
     for (const change of entry.changes || []) {
       const value = change.value || {};
       if (String(value.metadata?.phone_number_id) !== env.PHONE_NUMBER_ID) continue;
+      for(const status of value.statuses||[]){
+        const linked=await env.CATALOG_DB.prepare('SELECT a.order_id FROM wa_crm_actions a JOIN wa_operator_whatsapp_drafts d ON d.id=a.linked_draft_id WHERE d.graph_message_id=?').bind(String(status.id||'')).first();
+        if(linked&&['sent','delivered','read','failed'].includes(status.status))await recordCrmEvent(env,{id:'meta:'+status.id+':'+status.status,orderId:linked.order_id,channel:'whatsapp',outcome:status.status,details:'Meta delivery update'});
+      }
       for (const message of value.messages || []) {
         if (!message.id) continue;
         const waId = String(message.from || '').replace(/\D/g, '');
@@ -710,6 +716,35 @@ async function admin(request, env) {
     return response({ error: 'Unauthorized' }, 401);
   }
   const url = new URL(request.url);
+  if(url.pathname.startsWith('/admin/crm')||url.pathname.startsWith('/admin/terminal')){
+    try{
+      if(request.method==='GET'&&url.pathname==='/admin/crm')return response(await crmOverview(env));
+      if(request.method==='GET'&&url.pathname==='/admin/crm/workspace-fetch')return response({content:await crmWorkspaceCall(env,'notion-fetch',{id:url.searchParams.get('id')||'3eb488352cd3807f9882d063e7104149'})});
+      if(request.method==='GET'&&url.pathname==='/admin/crm/workspace-tools'){
+        const config=await storedMcpConnection(env);if(!config)return response({tools:[]});
+        const connection=await connectMcp(env,fetch,config);return response({tools:connection?.tools||[]});
+      }
+      if(request.method==='GET'&&url.pathname==='/admin/crm/digest')return response(await env.CATALOG_DB.prepare('SELECT * FROM wa_crm_digest ORDER BY day DESC LIMIT 7').all());
+      const body=request.method==='POST'?await request.json():{};
+      if(request.method==='POST'&&url.pathname==='/admin/crm/configure')return response(await configureCrm(env,body));
+      if(request.method==='POST'&&url.pathname==='/admin/crm/order')return response(await updateCrmOrder(env,Number(body.orderId),body));
+      if(request.method==='POST'&&url.pathname==='/admin/crm/sync')return response(await syncCrm(env));
+      if(request.method==='POST'&&url.pathname==='/admin/crm/views')return response(await createCrmViews(env));
+      if(request.method==='POST'&&url.pathname==='/admin/crm/prepare'){
+        if(!/^[A-Za-z0-9_-]{8,80}$/.test(body.sessionId||''))throw new Error('Invalid operator session');
+        return response(await prepareCrmAction(env,body.id,body.sessionId,body));
+      }
+      if(request.method==='POST'&&url.pathname==='/admin/crm/outcome'){
+        if(body.channel!=='sarvam'||!['completed','failed','no_answer'].includes(body.outcome)||!body.callId)throw new Error('Provide a verified Sarvam call ID and outcome');
+        const order=await env.CATALOG_DB.prepare('SELECT order_id FROM wa_crm_orders WHERE order_id=?').bind(Number(body.orderId)).first();if(!order)throw new Error('Order not found');
+        await recordCrmEvent(env,{id:'sarvam:'+String(body.callId).slice(0,100)+':'+body.outcome,orderId:order.order_id,channel:'sarvam',outcome:body.outcome,details:String(body.details||'Operator verified call outcome')});return response({saved:true});
+      }
+      if(request.method==='POST'&&url.pathname==='/admin/terminal/prepare')return response(await stageTerminal(env,body.sessionId,body));
+      if(request.method==='POST'&&url.pathname==='/admin/terminal/confirm')return response(await confirmTerminal(env,body.id,body.sessionId));
+      if(request.method==='GET'&&url.pathname==='/admin/terminal/history')return response(await env.CATALOG_DB.prepare('SELECT * FROM wa_terminal_runs WHERE session_id=? ORDER BY created_at DESC LIMIT 20').bind(url.searchParams.get('sessionId')||'').all());
+      return response({error:'Not found'},404);
+    }catch(error){return response({error:String(error.message).slice(0,250)},400);}
+  }
   if (request.method === 'GET' && url.pathname === '/admin/chat/history') {
     const sessionId = String(url.searchParams.get('sessionId') || '');
     if (!/^[A-Za-z0-9_-]{8,80}$/.test(sessionId)) return response({ error: 'Invalid session' }, 400);
@@ -719,7 +754,8 @@ async function admin(request, env) {
   if (request.method === 'GET' && url.pathname === '/admin/chat/pending') {
     const sessionId = String(url.searchParams.get('sessionId') || '');
     if (!/^[A-Za-z0-9_-]{8,80}$/.test(sessionId)) return response({ error: 'Invalid session' }, 400);
-    return response({ drafts: await pendingWhatsAppTemplates(env, sessionId), sarvamActions: await pendingSarvamActions(env, sessionId), sarvamRestActions: await pendingSarvamRest(env, sessionId) });
+    const terminal=await env.CATALOG_DB.prepare("SELECT id,runtime,code,status FROM wa_terminal_runs WHERE session_id=? AND status='pending' AND created_at>? ORDER BY created_at DESC LIMIT 5").bind(sessionId,now()-600).all();
+    return response({ terminalRuns:terminal.results,drafts: await pendingWhatsAppTemplates(env, sessionId), sarvamActions: await pendingSarvamActions(env, sessionId), sarvamRestActions: await pendingSarvamRest(env, sessionId) });
   }
   if (request.method === 'GET' && url.pathname === '/admin/operator/sarvam/status') {
     try {
@@ -954,6 +990,7 @@ export default {
     }
   },
   async scheduled(_controller, env, ctx) {
+    ctx.waitUntil(crmMaintenance(env,sendWhatsApp).catch(error=>log('crm_maintenance_failed',{error:String(error.message).slice(0,160)})));
     const stamp = now();
     const { results } = await env.CATALOG_DB.prepare(
       "SELECT message_id FROM wa_inbox WHERE attempts < 3 AND ((status = 'pending' AND available_at <= ?) OR (status = 'processing' AND lease_until < ?)) ORDER BY received_at LIMIT 20"

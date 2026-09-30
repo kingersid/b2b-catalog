@@ -122,7 +122,9 @@ test('Tavily MCP tools are available in operator mode via bearer secret', async 
     }
     modelCalls++;
     const body = JSON.parse(options.body);
-    assert.equal(body.tools.length, 3);
+    assert.equal(body.tools.length, 6);
+    assert.ok(body.tools.some(tool => tool.function.name === 'CRM_ORDERS'));
+    assert.ok(body.tools.some(tool => tool.function.name === 'PREPARE_SCRIPT'));
     assert.ok(body.tools.some(tool => tool.function.name === 'WHATSAPP_API_MESSAGE'));
     if (modelCalls === 1) return Response.json({ choices: [{ message: { content: null, tool_calls: [
       { id: 'call-1', type: 'function', function: { name: body.tools.find(tool => tool.function.name.startsWith('tavily_')).function.name, arguments: '{"query":"fabric trends"}' } },

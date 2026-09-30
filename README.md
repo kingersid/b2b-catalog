@@ -489,7 +489,7 @@ The "Book a video call" CTA is powered by the **Chandni Silk Mills Business OS**
 
 Feature branch: `feat/video-call-booking` in both repos.
 
-## CRM automation roadmap (TODO)
+## CRM automation (deployed 1 October 2026)
 
 This is the working checklist for turning the WhatsApp operator into a lightweight
 CRM. The fresh Notion database has **not** been created yet, and the production
@@ -521,14 +521,14 @@ Recommended views: **Today**, **Payment pending**, **Overdue**, **Ready to dispa
 
 ### Implementation checklist
 
-- [ ] Create the `Chandni Orders` Notion database and save its database ID as a Worker secret.
-- [ ] Give the Notion integration access to the database.
-- [ ] Add an idempotent order upsert keyed by `Source message ID` or `Order ID`.
-- [ ] Route owner messages through the operator agent, with explicit `note order` as the order action.
-- [ ] Write new orders and edits to Notion while keeping the operator reply short and clear.
-- [ ] Add status-triggered WhatsApp and Sarvam action drafts, with human approval before sending or calling.
-- [ ] Persist WhatsApp delivery results and Sarvam call outcomes back to the order page.
-- [ ] Deploy the Worker migration and test one order from WhatsApp through Notion and back.
+- [x] Create the `Chandni Orders` Notion database and save its database ID as a Worker secret.
+- [x] Connect the database through the existing encrypted Notion OAuth connection.
+- [x] Add an idempotent order upsert keyed by `Source message ID` or `Order ID`.
+- [x] Route owner messages through the operator agent, with explicit `note order` as the order action.
+- [x] Write new orders and edits to Notion while keeping the operator reply short and clear.
+- [x] Add status-triggered WhatsApp and Sarvam action drafts, with human approval before sending or calling.
+- [x] Persist WhatsApp delivery events and operator-verified Sarvam call outcomes back to the order page.
+- [x] Deploy the migration and verify existing captured orders in Notion. Signed owner webhook tests cover capture; a new live WhatsApp round-trip remains an operator acceptance check.
 
 ### Useful CRM automations
 
@@ -554,7 +554,7 @@ Recommended views: **Today**, **Payment pending**, **Overdue**, **Ready to dispa
    orders, overdue payments, calls awaiting approval, failed deliveries, and orders with
    no next action.
 
-### Isolated agent terminal (TODO)
+### Isolated agent terminal (deployed 1 October 2026)
 
 Add a Cloudflare Sandbox execution environment so the owner agent can run general
 Node.js and Python scripts without accessing a personal computer or the Worker runtime.
@@ -564,12 +564,12 @@ those prerequisites are available.
 
 Security requirements:
 
-- [ ] Expose execution only to the authenticated owner/operator session.
-- [ ] Use a stable per-owner sandbox ID and an isolated filesystem.
-- [ ] Enforce a short timeout, output-size limit, and command-length limit.
-- [ ] Keep Worker secrets out of the sandbox environment.
-- [ ] Record command, timestamp, exit code, and truncated output in an audit log.
-- [ ] Require confirmation before scripts can change production data or send messages.
+- [x] Expose execution only to the authenticated owner/operator session.
+- [x] Use a stable per-owner sandbox ID and an isolated filesystem.
+- [x] Enforce a short timeout, output-size limit, and command-length limit.
+- [x] Keep Worker secrets out of the sandbox environment.
+- [x] Record command, timestamp, exit code, and truncated output in an audit log.
+- [x] Require confirmation before scripts can change production data or send messages.
 
 Potential use cases:
 

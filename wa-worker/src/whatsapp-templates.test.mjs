@@ -8,6 +8,7 @@ globalThis.crypto ||= webcrypto;
 function fixture() {
   const rows = new Map();
   const calls = [];
+  const guards = { conversation: null, crm: null };
   const template = { name: PAYMENT_TEMPLATE_NAME, language: 'hi', status: 'APPROVED', category: 'UTILITY', components: [{ type: 'BODY', text: PAYMENT_TEMPLATE_BODY }] };
   const db = { prepare(sql) { return { bind(...args) { return {
     async run() {
@@ -21,7 +22,7 @@ function fixture() {
       else if (sql.includes("status = 'unknown'")) rows.get(args[2]).status = 'unknown';
       return { meta: { changes: 1 } };
     },
-    async first() { return rows.get(args[0]); },
+    async first() { if(sql.includes('FROM wa_conversations'))return guards.conversation;if(sql.includes('FROM wa_crm_actions'))return guards.crm;return rows.get(args[0]); },
   }; } }; } };
   const env = { CATALOG_DB: db, META_ACCESS_TOKEN: 'test-token', WABA_ID: 'waba', PHONE_NUMBER_ID: 'phone' };
   const fetchFn = async (url, options) => {
@@ -31,7 +32,7 @@ function fixture() {
     if (url.endsWith('/messages')) return Response.json({ messages: [{ id: 'wamid.test' }] });
     throw new Error('Unexpected Graph request');
   };
-  return { rows, calls, template, env, fetchFn };
+  return { rows, calls, template, env, fetchFn, guards };
 }
 
 test('Hindi payment template is rendered exactly and recipient requires country code', () => {
@@ -40,6 +41,17 @@ test('Hindi payment template is rendered exactly and recipient requires country 
   assert.throws(() => validateRecipient('9537097267'), /country code/);
   assert.equal(renderTemplate(template, ['सीमा जी', '15 सितंबर 2026', '12,500']),
     'नमस्ते सीमा जी,\n\nचाँदनी सिल्क मिल्स से कपड़ों का ऑर्डर देने के लिए धन्यवाद। हमारे रिकॉर्ड के अनुसार, दिनांक 15 सितंबर 2026 के आपके ऑर्डर की ₹12,500 राशि का भुगतान लंबित है। कृपया बताएं कि भुगतान कब तक हो सकेगा।\n\nधन्यवाद,\nचाँदनी सिल्क मिल्स');
+});
+
+test('opt-out or changed CRM order blocks an already-prepared reminder', async () => {
+ for(const kind of ['optout','changed']){
+  const {env,fetchFn,guards,calls}=fixture();
+  const draft=await prepareWhatsAppTemplate(env,'session_test',{to:'919537097267',template_name:PAYMENT_TEMPLATE_NAME,language:'hi',body_parameters:['Test','1 October 2026','100']},fetchFn);
+  if(kind==='optout')guards.conversation={mode:'optout'};
+  else guards.crm={revision:1,current_revision:2,confidence:'verified',phone:'+919537097267'};
+  await assert.rejects(()=>confirmWhatsAppTemplate(env,draft.id,true,fetchFn),kind==='optout'?/opted out/:/Order changed/);
+  assert.equal(calls.filter(c=>c.url.endsWith('/messages')).length,0);
+ }
 });
 
 test('agent draft does not send; confirmation sends approved template once', async () => {

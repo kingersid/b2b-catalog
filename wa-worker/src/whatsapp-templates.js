@@ -156,6 +156,10 @@ export async function confirmWhatsAppTemplate(env, id, optInConfirmed, fetchFn =
   const row = await env.CATALOG_DB.prepare('SELECT * FROM wa_operator_whatsapp_drafts WHERE id = ?').bind(id).first();
   const stamp = Math.floor(Date.now() / 1000);
   if (!row || row.status !== 'pending' || row.created_at <= stamp - DRAFT_LIFETIME) throw new Error('Draft is no longer available');
+  const conversation=await env.CATALOG_DB.prepare('SELECT mode FROM wa_conversations WHERE wa_id=?').bind(row.to_wa_id).first();
+  if(conversation?.mode==='optout')throw new Error('Recipient opted out');
+  const crm=await env.CATALOG_DB.prepare('SELECT a.revision,c.revision AS current_revision,c.confidence,c.phone FROM wa_crm_actions a JOIN wa_crm_orders c ON c.order_id=a.order_id WHERE a.linked_draft_id=?').bind(id).first();
+  if(crm&&(crm.revision!==crm.current_revision||crm.confidence!=='verified'||crm.phone?.slice(1)!==row.to_wa_id))throw new Error('Order changed; review and prepare a new draft');
   const values = JSON.parse(row.parameters_json);
   const template = await getTemplate(env, row.template_name, row.language, fetchFn);
   if (!template || template.status !== 'APPROVED' || renderTemplate(template, values) !== row.preview

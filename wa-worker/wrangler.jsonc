@@ -5,6 +5,7 @@
   "compatibility_date": "2026-09-26",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "services": [{ "binding": "OPERATOR_TERMINAL", "service": "chandni-operator-terminal" }],
   "secrets": {
     "required": ["META_VERIFY_TOKEN", "META_APP_SECRET", "META_ACCESS_TOKEN", "KIMI_API_KEY", "AGENT_ADMIN_KEY"]
   },

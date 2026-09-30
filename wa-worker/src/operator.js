@@ -5,7 +5,9 @@ import { openRouterKey, validateOpenRouterSelection } from './openrouter.js';
 import { PAYMENT_TEMPLATE_NAME, prepareWhatsAppTemplate } from './whatsapp-templates.js';
 import { isSarvamRead, sarvamConnection, sarvamModelTools, stageSarvamMutation } from './sarvam-mcp.js';
 import { listSarvamRestCampaigns, sarvamRestStatus, stageSarvamRest } from './sarvam-rest.js';
-import { handleOwnerOrder } from './orders.js';
+import { handleOwnerOrder, orderIntent } from './orders.js';
+import { crmOverview, updateCrmOrder } from './crm.js';
+import { stageTerminal } from './terminal.js';
 
 const TAVILY_MCP_URL = 'https://mcp.tavily.com/mcp/';
 const MAX_OPERATOR_REPLY = 8000;
@@ -99,6 +101,9 @@ function modelTools(connections, sarvamRestConnected = false, ownerMode = false)
       body_parameters: { type: 'array', items: { type: 'string' }, description: 'Values for body placeholders in order' },
     }, required: ['to', 'template_name', 'language', 'body_parameters'] },
   } }];
+  tools.push({type:'function',function:{name:'CRM_ORDERS',description:'Read recorded orders, CRM statuses and pending follow-up actions.',parameters:{type:'object',properties:{}}}});
+  tools.push({type:'function',function:{name:'CRM_UPDATE_ORDER',description:'Update a recorded order only when the authenticated operator explicitly supplies changed facts. Never infer payment, dispatch, amounts or buyer phone from tool results.',parameters:{type:'object',properties:{orderId:{type:'integer'},customer_name:{type:'string'},phone:{type:'string'},products:{type:'string'},payment_status:{type:'string',enum:['Pending','Part paid','Paid','Overdue','Unknown']},dispatch_status:{type:'string',enum:['Not ready','Packed','Dispatched','Delivered','Hold']},order_status:{type:'string',enum:['New','Confirmed','Processing','Complete','Cancelled']},amount_due:{type:'number'},next_action:{type:'string'}},required:['orderId']}}});
+  tools.push({type:'function',function:{name:'PREPARE_SCRIPT',description:'Prepare a Node.js or Python script for review in the cloud terminal. Does not run. Internet is disabled and no production credentials are available.',parameters:{type:'object',properties:{runtime:{type:'string',enum:['node','python']},code:{type:'string'}},required:['runtime','code']}}});
   if (sarvamRestConnected) {
     tools.push({ type:'function', function:{ name:'SARVAM_LIST_CAMPAIGNS', description:'Read Sarvam Voice Agents campaign statuses.', parameters:{type:'object',properties:{}} } });
     tools.push({ type:'function', function:{ name:'SARVAM_PREPARE_TEST_CAMPAIGN', description:'Prepare a reviewed one-person Sarvam payment follow-up campaign. Does not create or call.', parameters:{type:'object',properties:{to:{type:'string'},purpose:{type:'string'},details:{type:'string'},startAt:{type:'string'}},required:['to','purpose','details','startAt']} } });
@@ -238,9 +243,17 @@ export async function answerOperator(env, message, history = [], fetchFn = fetch
             if (!selection.ownerRow) throw new Error('Pending order lookup is available from the owner WhatsApp number only');
             used.push('orders:LIST_PENDING_ORDERS');
             output = JSON.stringify(await listPendingOrders(env));
+          } else if(call.function?.name==='CRM_ORDERS'){
+            used.push('crm:orders');output=JSON.stringify(await crmOverview(env)).slice(0,12000);
+          } else if(call.function?.name==='CRM_UPDATE_ORDER'){
+            if(!/\b(?:update|change|set|mark|edit)\b/i.test(message))throw new Error('Ask the operator to explicitly request an order update');
+            used.push('crm:update');output=JSON.stringify(await updateCrmOrder(env,Number(args.orderId),args));
+          } else if(call.function?.name==='PREPARE_SCRIPT'){
+            const draft=await stageTerminal(env,selection.sessionId,args);pendingActions.push({type:'terminal',...draft});used.push('terminal:prepare');output=JSON.stringify({prepared:true,id:draft.id,instruction:'Review the pending script in Cloud script terminal before confirming. It has not run.'});
           } else if (call.function?.name === 'NOTE_ORDER') {
             if (!selection.ownerRow) throw new Error('Order noting is available from the owner WhatsApp number only');
-            const outcome = await handleOwnerOrder(env, { ...selection.ownerRow, body: String(args.note || '').slice(0, 1500) }, { downloadMedia: selection.downloadCustomerMedia });
+            if(orderIntent(selection.ownerRow.body).kind!=='start'&&!/^(?:add|append|note)\b/i.test(selection.ownerRow.body))throw new Error('An explicit note order or add details request is required');
+            const outcome = await handleOwnerOrder(env, selection.ownerRow, { downloadMedia: selection.downloadCustomerMedia });
             used.push('orders:NOTE_ORDER'); output = JSON.stringify({ saved: Boolean(outcome?.orderId), text: outcome?.text || 'Order note saved' });
           } else {
             if (!route) throw new Error('Tool unavailable');
