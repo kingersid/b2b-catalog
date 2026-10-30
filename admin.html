@@ -258,11 +258,22 @@
   });
   let designs = [];
   const metadataFields = [
-    ["title", "Product name"], ["fabric_type", "Fabric type"], ["pattern", "Work / pattern"],
+    ["title", "Product name"], ["pattern", "Work / pattern"],
     ["colors", "Colours (comma separated)"], ["use_cases", "Best uses (comma separated)"],
     ["composition", "Composition"], ["width_cm", "Width in cm"],
     ["moq_meters", "Minimum metres"], ["keywords", "Other buyer search words"],
   ];
+  // Fabric is a fixed list so the agent and the catalog filter agree on names.
+  const FABRIC_LABELS = ["Velvet", "Velvet 9000", "Saga Silk", "Mono Banglori", "Phantom Silk", "Fendy"];
+  function fabricOptions(selected) {
+    const value = String(selected || "");
+    const list = FABRIC_LABELS.slice();
+    // Keep an older free-text value visible instead of silently dropping it.
+    if (value && !list.includes(value)) list.push(value);
+    return ['<option value="">— not set —</option>']
+      .concat(list.map((f) => '<option value="' + f + '"' + (f === value ? " selected" : "") + ">" + f + "</option>"))
+      .join("");
+  }
   const isAgentReady = (design) => Boolean(design.active && design.price > 0 &&
     design.fabric_type && design.colors && design.use_cases && design.availability === "available");
 
@@ -295,6 +306,7 @@
               '<label>' + label + '<input data-meta="' + field + '" value="' + escapeHtml(design[field] ?? '') + '"' +
               (field === 'width_cm' || field === 'moq_meters' ? ' type="number" min="0" step="any"' : ' maxlength="240"') + '></label>'
             ).join('') +
+            '<label>Fabric type<select data-meta="fabric_type">' + fabricOptions(design.fabric_type) + '</select></label>' +
             '<label>Availability<select data-meta="availability">' +
               [['unknown', 'Not checked'], ['available', 'Available'], ['low_stock', 'Low stock'], ['sold_out', 'Sold out']]
                 .map(([value, label]) => '<option value="' + value + '"' + ((design.availability || 'unknown') === value ? ' selected' : '') + '>' + label + '</option>').join('') +
