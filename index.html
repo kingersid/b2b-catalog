@@ -24,6 +24,9 @@ fbq('track', 'PageView');
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></noscript>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230d1117'/><text x='50' y='68' font-size='46' text-anchor='middle' fill='%2334d399' font-family='Arial' font-weight='bold'>CS</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@500;700&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #0b0b0e;
@@ -51,90 +54,95 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
      ============================================================ */
   #view-grid { min-height: 100dvh; position: relative; }
 
-  /* Grid morph: after 2s, design #1's cell expands into a hero.
-     The rest of the grid fades below, a CTA rises over the hero. */
-  #view-grid.morphed .cell:first-child {
-    grid-column: 1 / -1;
-    aspect-ratio: auto;
-    height: 100dvh;
-    border-radius: 0;
-    transition: all 0.85s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  #view-grid.morphed .cell:first-child img { object-fit: contain; }
-  #view-grid.morphed .cell:not(:first-child) {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.4s ease 0.2s;
-  }
-  #view-grid.morphed .topbar,
-  #view-grid.morphed .grid-sub {
-    opacity: 0;
-    transition: opacity 0.35s ease;
-  }
-
-  .morph-cta {
+  /* Owner overlay: after 2s on first visit it grows out of design #1 */
+  .owner-hero {
     position: fixed;
-    left: 50%;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 8vh);
-    transform: translateX(-50%) translateY(24px);
-    z-index: 25;
-    text-align: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.55s ease 0.3s, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.3s;
-  }
-  .morph-cta.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-  .morph-cta .cta-btn {
-    display: inline-flex;
+    inset: 0;
+    z-index: 30;
+    display: none;
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 26px;
-    border: 1px solid rgba(52,211,153,0.45);
-    border-radius: 20px;
+    background: var(--bg);
+    overflow-y: auto;
+    transition: clip-path 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+    font-family: "Noto Sans Devanagari", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  .owner-hero.open { display: flex; }
+  .owner-close {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: 12px;
+    z-index: 2;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
     background: rgba(10, 10, 14, 0.72);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     color: var(--text);
-    font-family: inherit;
+    font-size: 16px;
     cursor: pointer;
-    box-shadow: 0 14px 44px rgba(0, 0, 0, 0.55), 0 0 32px rgba(52, 211, 153, 0.12);
-    touch-action: manipulation;
   }
-  .morph-cta .cta-btn:active { transform: scale(0.97); }
-  .morph-cta .cta-arrow {
-    width: 26px; height: 26px;
-    border-right: 3px solid var(--accent);
-    border-bottom: 3px solid var(--accent);
-    transform: rotate(225deg);
-    animation: cta-float 1.6s ease-in-out infinite;
+  .owner-photo { flex: 0 0 auto; height: clamp(260px, 44vh, 420px); height: clamp(260px, 44svh, 420px); }
+  .owner-photo img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 10%; display: block; }
+  .owner-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 20px);
+    text-align: center;
   }
-  .morph-cta .cta-line {
-    font-size: 15.5px;
-    font-weight: 800;
-    letter-spacing: -0.2px;
-    color: #fff;
-    line-height: 1.35;
+  .owner-eyebrow { font-size: 13px; font-weight: 700; color: var(--accent); }
+  .owner-body h1 {
+    font-size: clamp(22px, 5.6vw, 34px);
+    line-height: 1.3;
+    font-weight: 700;
+    color: var(--text);
+    margin: 4px 0 6px;
   }
-  .morph-cta .cta-line small {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    margin-top: 2px;
+  .owner-brand { font-size: 14px; font-weight: 600; color: var(--accent-2); }
+  .owner-msg {
+    max-width: 520px;
+    margin: 10px 0 0;
+    padding: 2px 0 2px 14px;
+    border-left: 3px solid var(--accent);
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text);
   }
-  @keyframes cta-float {
-    0%, 100% { transform: rotate(225deg) translateX(0); opacity: 0.75; }
-    50%      { transform: rotate(225deg) translateX(-5px); opacity: 1; }
+  .owner-sign { max-width: 520px; width: 100%; margin-top: 6px; text-align: left; font-size: 12.5px; color: var(--muted); }
+  .owner-address { font-style: normal; margin-top: 8px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+  .owner-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+  .owner-actions .btn-primary,
+  .owner-actions .btn-ghost {
+    display: inline-block;
+    padding: 12px 20px;
+    border-radius: 14px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
   }
-
+  .owner-actions .btn-primary { border: 0; background: var(--accent); color: #05140e; }
+  .owner-actions .btn-ghost { border: 1px solid rgba(52,211,153,0.45); background: transparent; color: var(--text); }
+  @media (max-height: 700px) {
+    .owner-photo { height: 250px; }
+    .owner-msg { font-size: 13px; line-height: 1.55; }
+    .owner-address { margin-top: 4px; }
+    .owner-actions { margin-top: 10px; }
+  }
+  @media (min-width: 760px) {
+    .owner-hero { flex-direction: row; }
+    .owner-photo { flex: 0 0 44%; height: auto; min-height: 0; }
+    .owner-body { align-items: flex-start; text-align: left; padding: 48px 56px; }
+    .owner-msg, .owner-sign { margin-left: 0; }
+    .owner-actions { justify-content: flex-start; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    #view-grid.morphed .cell:first-child { transition: none; }
-    #view-grid.morphed .cell:not(:first-child) { transition: none; }
-    #view-grid.morphed .topbar,
-    #view-grid.morphed .grid-sub { transition: none; }
-    .morph-cta { transition: opacity 0.3s; transform: translateX(-50%); }
-    .morph-cta .cta-arrow { animation: none; }
+    .owner-hero { transition: none; }
   }
 
   .topbar {
@@ -896,17 +904,28 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   </header>
   <p class="grid-sub">The full catalog at a glance — <b id="grid-count"></b> designs. <b>Tap any design</b> to view it full-screen.</p>
   <div class="grid" id="grid"></div>
-  <!-- CTA rises over the morphed hero -->
-  <div class="morph-cta" id="morph-cta">
-    <button class="cta-btn" id="morph-cta-btn" type="button">
-      <span class="cta-arrow" aria-hidden="true"></span>
-      <span class="cta-line">पूरा कैटलॉग देखने के लिए ऊपर स्वाइप करें<small>Swipe up to see all <b id="cta-count">52</b> designs</small></span>
-    </button>
-  </div>
   <button class="shortlist-pill" id="shortlist-pill" aria-label="Open my shortlist">
     ♥ My Shortlist <span class="n" id="sl-count">0</span>
   </button>
 </div>
+
+<!-- ============ OWNER OVERLAY (after 2s on first visit) ============ -->
+<section class="owner-hero" id="owner-hero" aria-label="चंदनी सिल्क मिल्स">
+  <button class="owner-close" id="owner-close" type="button" aria-label="बंद करें">✕</button>
+  <div class="owner-photo"><img src="owner-portrait.webp" width="660" height="760" alt="सिद्धार्थ, चंदनी सिल्क मिल्स" decoding="async"></div>
+  <div class="owner-body">
+    <p class="owner-eyebrow">Instagram और Facebook पर</p>
+    <h1>मंदिर फ़ैब्रिक्स का सबसे बड़ा डेस्टिनेशन</h1>
+    <p class="owner-brand">चंदनी सिल्क मिल्स — सूरत के प्रख्यात एम्ब्रॉयडरी फ़ैब्रिक निर्माता</p>
+    <blockquote class="owner-msg">नमस्ते, मैं सिद्धार्थ हूँ। चंदनी सिल्क मिल्स में हर डिज़ाइन पर हम कारीगरी और गुणवत्ता का पूरा ध्यान रखते हैं, ताकि आपके मंदिर और उत्सव के लिए सबसे सुंदर फ़ैब्रिक आपको मिले। आइए, हमारा संग्रह देखिए।</blockquote>
+    <p class="owner-sign">— सिद्धार्थ, चंदनी सिल्क मिल्स</p>
+    <address class="owner-address">D-1232, राधा कृष्ण टेक्सटाइल्स मार्केट, रिंग रोड, सूरत</address>
+    <div class="owner-actions">
+      <button class="btn-primary" id="owner-browse" type="button">कैटलॉग देखें</button>
+      <a class="btn-ghost" href="https://wa.me/919537097267" target="_blank" rel="noopener">WhatsApp पर बात करें</a>
+    </div>
+  </div>
+</section>
 
 <!-- ============ SHORTLIST SHEET ============ -->
 <div class="sheet-backdrop" id="sheet-backdrop"></div>
@@ -992,9 +1011,21 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   async function loadDesigns() {
     try {
       const origin = location.protocol === "file:" ? "https://chandni-catalog.pages.dev" : location.origin;
-      const resp = await fetch(`${origin}/api/designs?format=pages&limit=500`);
-      const data = await resp.json();
-      const designs = data.designs || [];
+      // The API clamps `limit` to 100 per page, so asking for limit=500 silently
+      // returned only the first 100 designs. Walk the pages until we have them all.
+      const designs = [];
+      let page = 1;
+      for (;;) {
+        const resp = await fetch(`${origin}/api/designs?format=pages&limit=100&page=${page}`);
+        const batch = await resp.json();
+        const items = batch.designs || [];
+        designs.push(...items);
+        const total = Number(batch.total || 0);
+        const pages = Number(batch.totalPages || 1);
+        if (!items.length || designs.length >= total || page >= pages) break;
+        page++;
+      }
+      const data = { total: designs.length };
       allFiles = designs.map((d) => d.name).filter(Boolean);
       // Build stem -> design_id map so image URLs use the correct R2 key
       idByStem = {};
@@ -1086,7 +1117,6 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   function initGrid() {
     grid.innerHTML = "";
     document.getElementById("grid-count").textContent = TOTAL;
-    document.getElementById("cta-count").textContent = TOTAL;
     for (let i = 0; i < renderedCount; i++) {
       const f = FILES[i];
       const cell = document.createElement("button");
@@ -1113,15 +1143,28 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   // Image URLs go through the API proxy (R2 is not public by default)
   const imgUrl = (key) => (IS_FILE ? key : ORIGIN + "/api/designs?img=" + encodeURIComponent(key));
   const urlFor = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/original/" + encodeURIComponent(id) + ".jpg"); };
-  const webpUrl = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/original/" + encodeURIComponent(id) + ".jpg"); };
-  const midUrl = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/original/" + encodeURIComponent(id) + ".jpg"); };
+  const webpUrl = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/webp/" + encodeURIComponent(id) + ".webp"); };
+  const midUrl = (f) => { const id = idByStem[stem(f)] || f.replace(/\.[^.]+$/, ""); return imgUrl("designs/mid/" + encodeURIComponent(id) + ".webp"); };
+  // Safety net: some designs exist only as the original JPEG in R2 (bulk imports
+  // and uploads made before the mid/webp variants were generated). If the
+  // optimized variant 404s, fall back to the original so the tile/ slide is
+  // never blank. `once` keeps a genuinely missing design from looping.
+  function useFallback(img, f) {
+    img.addEventListener("error", () => {
+      const fb = urlFor(f);
+      if (img.getAttribute("src") !== fb) img.src = fb;
+    }, { once: true });
+  }
   // Engagement API always hits the deployed backend (works from file:// and local dev).
   const API = (IS_FILE ? "https://chandni-catalog.pages.dev" : ORIGIN) + "/api/catalog";
   const WA_NUMBER = "919537097267";
   const stem = (f) => f.replace(/\.[^.]+$/, "").toLowerCase();
 
-  // Closing poster card (shown after the last design). Not in FILES.
+  // Closing poster card (shown after the last design). Not in FILES — it is a
+  // static file at the site root (/landing.webp), not an R2 design object, so it
+  // must NOT go through urlFor() (which rewrites to designs/original/*.jpg).
   const LANDING = "landing.webp";
+  const landingUrl = () => (IS_FILE ? LANDING : ORIGIN + "/" + LANDING);
 
   const grid = document.getElementById("grid");
   const detail = document.getElementById("view-detail");
@@ -1137,64 +1180,49 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   let active = 0;       // current slide index (0..POSTER_INDEX)
 
   // ============================================================
-  // GRID MORPH: grid loads normally, then after 2s on first visit
-  // design #1 expands into a hero and the rest fades out. A CTA
-  // rises over the hero; tapping it (or scrolling) reverses the
-  // morph back to the full grid.
+  // OWNER OVERLAY: on first visit per session, 2s after load the
+  // overlay grows out of design #1 (clip-path from its cell's rect).
+  // Closing it (button, Esc, or "कैटलॉग देखें") returns to the grid.
   // ============================================================
-  const viewGrid = document.getElementById("view-grid");
-  const morphCta = document.getElementById("morph-cta");
+  const ownerHero = document.getElementById("owner-hero");
   const MORPH_KEY = "csm_grid_morphed";
   let morphTimer = null;
 
   function triggerMorph() {
-    viewGrid.classList.add("morphed");
-    clearTimeout(morphTimer);
-    morphTimer = setTimeout(() => morphCta.classList.add("show"), 50);
+    const first = gridCells[0];
+    ownerHero.style.transition = "none";
+    if (first) {
+      const r = first.getBoundingClientRect();
+      ownerHero.style.clipPath = `inset(${r.top}px ${innerWidth - r.right}px ${innerHeight - r.bottom}px ${r.left}px round 8px)`;
+    }
+    ownerHero.classList.add("open");
+    void ownerHero.offsetHeight;
+    ownerHero.style.transition = "";
+    ownerHero.style.clipPath = "inset(0px 0px 0px 0px round 0px)";
   }
 
   function dismissMorph() {
-    viewGrid.classList.remove("morphed");
-    morphCta.classList.remove("show");
     clearTimeout(morphTimer);
+    ownerHero.classList.remove("open");
+    ownerHero.style.clipPath = "";
   }
 
-  // First-visit-per-session: trigger the morph 2s after page load.
   let morphedBefore = false;
   try { morphedBefore = !!sessionStorage.getItem(MORPH_KEY); } catch (e) { /* private mode */ }
   if (!morphedBefore) {
     try { sessionStorage.setItem(MORPH_KEY, "1"); } catch (e) { /* private mode */ }
-    clearTimeout(morphTimer);
     morphTimer = setTimeout(triggerMorph, 2000);
   }
 
-  // CTA tap: open the swipe feed starting at design #2 (design #1 is
-  // already shown as the hero). The detail view overlays everything at
-  // z-index 50 so the morphed grid stays hidden underneath. When the
-  // user closes the detail, we dismiss the morph so they land on the
-  // normal grid.
-  document.getElementById("morph-cta-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    fetch(API + "?action=ctaClick", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ itemId: "heroSwipeUp" }),
-    }).catch(() => {});
+  document.getElementById("owner-close").addEventListener("click", dismissMorph);
+  document.getElementById("owner-browse").addEventListener("click", () => {
     dismissMorph();
-    openDetail(1);
+    openDetail(0);
     showScrollNudge();
   });
-
-  // Scrolling down (swipe up) also dismisses the morph — the grid
-  // fades back in and the user can browse the full catalog.
-  let scrollDismissed = false;
-  window.addEventListener("scroll", () => {
-    if (!viewGrid.classList.contains("morphed") || scrollDismissed) return;
-    if (window.scrollY > 80) {
-      scrollDismissed = true;
-      dismissMorph();
-    }
-  }, { passive: true });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ownerHero.classList.contains("open")) dismissMorph();
+  });
 
   // ============================================================
   // DETAIL SLIDES (designs + closing poster card)
@@ -1212,6 +1240,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
           '<span class="zoom-hint">Pinch or double-tap to zoom the fabric</span>' +
         "</div>" +
         '<button class="heart" data-item="' + stem(f) + '" aria-label="Like this design">♡ <span class="n">0</span></button>';
+      useFallback(slide.querySelector("img.full"), f);
       slideArea.appendChild(slide);
     });
     // Closing poster card: brand moment + back-to-catalog button.
@@ -1220,7 +1249,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     poster.dataset.index = POSTER_INDEX;
     poster.innerHTML =
       '<div class="media">' +
-        '<img class="full" src="' + urlFor(LANDING) + '" alt="Chandni Silk Mills — Catalog" loading="lazy" decoding="async">' +
+        '<img class="full" src="' + landingUrl() + '" alt="Chandni Silk Mills — Catalog" loading="lazy" decoding="async">' +
       "</div>" +
       '<div class="closing-card">' +
         '<div class="brand-line">Chandni Silk Mills</div>' +
@@ -1478,7 +1507,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
     // Peek: preview the next slide. On the poster there is none.
     if (active < POSTER_INDEX) {
       const next = active + 1 === POSTER_INDEX ? LANDING : FILES[active + 1];
-      peekBg.style.backgroundImage = "url('" + (next === LANDING ? urlFor(LANDING) : midUrl(next)) + "')";
+      peekBg.style.backgroundImage = "url('" + (next === LANDING ? landingUrl() : midUrl(next)) + "')";
       peek.style.display = "";
     } else {
       peek.style.display = "none";
@@ -1904,7 +1933,6 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
   function initGrid() {
     grid.innerHTML = "";
     document.getElementById("grid-count").textContent = TOTAL;
-    document.getElementById("cta-count").textContent = TOTAL;
     FILES.forEach((f, i) => {
       const cell = document.createElement("button");
       cell.className = "cell";
@@ -1919,6 +1947,7 @@ src="https://www.facebook.com/tr?id=1373300634665128&ev=PageView&noscript=1"/></
         '<span class="heart-badge"></span>' +
         '<span class="trend" title="Trending — one of the most liked designs">🔥</span>';
       cell.querySelector("img").addEventListener("load", () => cell.classList.add("loaded"), { once: true });
+      useFallback(cell.querySelector("img"), f);
       cell.addEventListener("click", () => openDetail(i));
       grid.appendChild(cell);
     });

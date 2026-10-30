@@ -75,7 +75,12 @@ $("files").addEventListener("change", async (e) => {
         continue;
       }
       const blob = await render(bmp, 1800, "image/jpeg", 0.9);
-      picked.push({ name: f.name, blob, previewUrl: URL.createObjectURL(blob) });
+      // The catalog renders designs/mid/* for the grid and designs/webp/* for the
+      // full-screen slide, so those variants must be uploaded alongside the
+      // original — otherwise a new design shows up as a blank tile.
+      const mid = await render(bmp, 1000, "image/webp", 0.72);
+      const large = await render(bmp, 1600, "image/webp", 0.75);
+      picked.push({ name: f.name, blob, mid, large, previewUrl: URL.createObjectURL(blob) });
       bmp.close();
     } catch (err) {
       $("status").textContent += "\n⚠️ Could not read " + f.name;
@@ -128,7 +133,10 @@ $("go").onclick = async () => {
     const form = new FormData();
     form.append("key", key);
     // The optimized blob is JPEG, so give the server a matching filename.
-    form.append("design", p.blob, p.name.replace(/\.[^.]+$/, "") + ".jpg");
+    const stem = p.name.replace(/\.[^.]+$/, "");
+    form.append("design", p.blob, stem + ".jpg");
+    form.append("mid", p.mid, stem + ".webp");
+    form.append("webp", p.large, stem + ".webp");
 
     try {
       const resp = await fetch(API, { method: "POST", body: form });

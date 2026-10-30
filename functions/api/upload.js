@@ -3,10 +3,13 @@
 //   POST /api/upload   multipart/form-data:
 //     key    -> must equal the UPLOAD_KEY secret (only the owner can upload)
 //     design -> one image file (the optimized JPG produced client-side)
+//     mid    -> OPTIONAL 1000px webp variant (grid thumbnails)
+//     webp   -> OPTIONAL 1600px webp variant (full-screen slides)
 //
 // What it does:
 //   1. Verifies the shared key.
 //   2. Puts the original image to R2 as designs/original/{id}.jpg
+//      plus designs/mid/{id}.webp and designs/webp/{id}.webp when supplied.
 //   3. Inserts a row into the `designs` table.
 //   4. Returns the design record — live in the catalog in ~1 second.
 //
@@ -69,12 +72,28 @@ export async function onRequestPost({ request, env }) {
   try {
     const bytes = await file.arrayBuffer();
 
-    // 1. Put image to R2 (original + derived sizes remain a client concern;
-    //    for now we store the original — catalog renders via this object).
+    // 1. Put image to R2. The catalog reads designs/mid/* for the grid and
+    //    designs/webp/* for the full-screen slide, so without those variants a
+    //    new design renders as a blank tile. The client renders all three from
+    //    the same bitmap, so they are guaranteed to match.
     const r2Key = `designs/original/${designId}.${ext}`;
     await env.DESIGNS_BUCKET.put(r2Key, bytes, {
       httpMetadata: { contentType: ext === "webp" ? "image/webp" : "image/jpeg" },
     });
+
+    const variants = [
+      { field: "mid", key: `designs/mid/${designId}.webp` },
+      { field: "webp", key: `designs/webp/${designId}.webp` },
+    ];
+    const stored = [];
+    for (const v of variants) {
+      const variant = form.get(v.field);
+      if (!(variant instanceof File)) continue;
+      await env.DESIGNS_BUCKET.put(v.key, await variant.arrayBuffer(), {
+        httpMetadata: { contentType: "image/webp" },
+      });
+      stored.push(v.key);
+    }
 
     // 2. Assign the highest order so new uploads appear first in the catalog.
     await env.CATALOG_DB.prepare(
@@ -85,7 +104,7 @@ export async function onRequestPost({ request, env }) {
       "SELECT design_id, name, sort_order, created_at, active FROM designs WHERE design_id = ?"
     ).bind(designId).first();
 
-    return json({ ok: true, design: created, url: `/designs/original/${designId}.${ext}` });
+    return json({ ok: true, design: created, url: `/designs/original/${designId}.${ext}`, variants: stored });
   } catch (e) {
     return json({ error: e.message }, 500);
   }
