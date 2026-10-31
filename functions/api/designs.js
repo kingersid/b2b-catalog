@@ -91,9 +91,26 @@ export async function onRequest({ request, env }) {
     }
 
     // Highest order first; uploads receive a new maximum to stay at the top.
-    const { results } = await env.CATALOG_DB
-      .prepare("SELECT design_id, name, sort_order, created_at, active FROM designs WHERE active = 1 ORDER BY sort_order DESC, created_at DESC")
+    const fabricParam = (url.searchParams.get("fabric") || "").trim().toLowerCase();
+    const { results: allRows } = await env.CATALOG_DB
+      .prepare("SELECT d.design_id, d.name, d.sort_order, d.created_at, d.active, COALESCE(m.fabric_type, '') AS fabric_type FROM designs d LEFT JOIN design_metadata m ON m.design_id = d.design_id WHERE d.active = 1 ORDER BY d.sort_order DESC, d.created_at DESC")
       .all();
+    const results = fabricParam
+      ? allRows.filter((r) => String(r.fabric_type || "").toLowerCase().includes(fabricParam))
+      : allRows;
+
+    // Rate lookup uses the same key order as price-catalog.html (id, name, stem, lowercase variants).
+    const priceRows = (await env.CATALOG_DB.prepare("SELECT item_id, price FROM prices").all()).results;
+    const priceMap = Object.fromEntries(priceRows.map((r) => [r.item_id, r.price]));
+    const rateFor = (r) => {
+      const name = String(r.name || "");
+      const stem = name.replace(/\.[^.]+$/, "");
+      const id = String(r.design_id || "");
+      for (const key of [id, name, stem, id.toLowerCase(), name.toLowerCase(), stem.toLowerCase()]) {
+        if (key && Object.prototype.hasOwnProperty.call(priceMap, key)) return priceMap[key];
+      }
+      return null;
+    };
 
     if (format === "files") {
       // Compat: old FILES array was filenames; return design_id + ".jpg" for each
@@ -109,6 +126,7 @@ export async function onRequest({ request, env }) {
       const pageItems = results.slice(offset, offset + limit);
       const designs = pageItems.map((r) => ({
         ...r,
+        rate: rateFor(r),
         url: `${origin}/api/designs?img=designs/original/${r.design_id}.jpg`,
         midUrl: `${origin}/api/designs?img=designs/mid/${r.design_id}.webp`,
         webpUrl: `${origin}/api/designs?img=designs/webp/${r.design_id}.webp`,
@@ -127,6 +145,8 @@ export async function onRequest({ request, env }) {
         design_id: r.design_id,
         name: r.name,
         sort_order: r.sort_order,
+        fabric_type: r.fabric_type || "",
+        rate: rateFor(r),
         url: `${origin}/api/designs?img=designs/original/${r.design_id}.jpg`,
         midUrl: `${origin}/api/designs?img=designs/mid/${r.design_id}.webp`,
         webpUrl: `${origin}/api/designs?img=designs/webp/${r.design_id}.webp`,
