@@ -109,6 +109,11 @@
     min-height: 20px;
   }
   .card .current.empty { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .fabric-row { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+  .fabric-row select { flex: 1; min-width: 0; background: #10131a; color: var(--text); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+  .fabric-feedback { font-size: 11px; min-height: 14px; margin-top: 2px; }
+  .fabric-feedback.success { color: var(--accent); }
+  .fabric-feedback.error { color: #fca5a5; }
   .row { display: flex; gap: 6px; }
   .row input {
     flex: 1;
@@ -155,6 +160,22 @@
     content: "HIDDEN"; position: absolute; inset: auto 6px 6px; text-align: center;
     background: rgba(0,0,0,0.82); color: #fff; padding: 5px; border-radius: 6px; font-size: 11px; font-weight: 800;
   }
+  .metadata { border-top: 1px solid rgba(255,255,255,0.12); padding-top: 8px; }
+  .metadata summary { cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 700; }
+  .metadata-grid { display: grid; gap: 7px; margin-top: 9px; }
+  .metadata-grid label { display: grid; gap: 3px; color: var(--muted); font-size: 11px; }
+  .metadata-grid input, .metadata-grid select {
+    width: 100%; background: #10131a; border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 7px; color: var(--text); padding: 7px; font: inherit; font-size: 12px;
+  }
+  .metadata-grid button { background: rgba(52,211,153,0.15); border: 1px solid var(--accent);
+    border-radius: 7px; color: var(--accent); padding: 8px; font-weight: 700; cursor: pointer; }
+  .metadata-feedback { margin-top: 6px; font-size: 12px; font-weight: 700; }
+  .metadata-feedback:empty { display: none; }
+  .metadata-feedback.success { color: var(--accent); }
+  .metadata-feedback.error { color: #fca5a5; }
+  .ready-tag { color: var(--accent); font-size: 11px; }
+  .ready-tag.incomplete { color: var(--accent-2); }
 
   /* ---------- Responsive: tablet ---------- */
   @media (max-width: 768px) {
@@ -215,6 +236,7 @@
 <div class="stats">
   <span>Designs: <b id="stat-total">0</b></span>
   <span>Priced: <b id="stat-done">0</b></span>
+  <span>Agent ready: <b id="stat-ready">0</b></span>
 </div>
 
 <div class="grid" id="grid"></div>
@@ -224,10 +246,12 @@
   const ORIGIN = IS_FILE ? "https://chandni-catalog.pages.dev" : location.origin;
   const PRICE_API = ORIGIN + "/prices";
   const MANAGE_API = ORIGIN + "/api/manage-designs";
+  const METADATA_API = ORIGIN + "/api/product-metadata";
 
   const grid = document.getElementById("grid");
   const statTotal = document.getElementById("stat-total");
   const statDone = document.getElementById("stat-done");
+  const statReady = document.getElementById("stat-ready");
   const keyInput = document.getElementById("key");
   const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -238,6 +262,25 @@
     init();
   });
   let designs = [];
+  const metadataFields = [
+    ["title", "Product name"], ["pattern", "Work / pattern"],
+    ["colors", "Colours (comma separated)"], ["use_cases", "Best uses (comma separated)"],
+    ["composition", "Composition"], ["width_cm", "Width in cm"],
+    ["moq_meters", "Minimum metres"], ["keywords", "Other buyer search words"],
+  ];
+  // Fabric is a fixed list so the agent and the catalog filter agree on names.
+  const FABRIC_LABELS = ["Velvet", "Velvet 9000", "Saga Silk", "Mono Banglori", "Phantom Silk", "Fendy", "Moss Satin", "Raw Silk", "Nett"];
+  function fabricOptions(selected) {
+    const value = String(selected || "");
+    const list = FABRIC_LABELS.slice();
+    // Keep an older free-text value visible instead of silently dropping it.
+    if (value && !list.includes(value)) list.push(value);
+    return ['<option value="">— not set —</option>']
+      .concat(list.map((f) => '<option value="' + f + '"' + (f === value ? " selected" : "") + ">" + f + "</option>"))
+      .join("");
+  }
+  const isAgentReady = (design) => Boolean(design.active && design.price > 0 &&
+    design.fabric_type && design.colors && design.use_cases && design.availability === "available");
 
   function render() {
     grid.innerHTML = "";
@@ -262,13 +305,101 @@
             '<button type="button" id="btn-' + elementId + '">' + (p != null ? "Update" : "Save") + "</button>" +
           "</div>" +
           '<div class="saved" id="msg-' + elementId + '"></div>' +
+          '<div class="fabric-row"><label>Fabric</label><select class="fabric-select">' + fabricOptions(design.fabric_type) + '</select></div>' +
+          '<div class="fabric-feedback" role="status" aria-live="polite"></div>' +
           '<div class="manage-row"><button type="button" class="visibility ' + (design.active ? '' : 'restore') + '">' + (design.active ? 'Hide design' : 'Restore design') + '</button></div>' +
+          '<details class="metadata"><summary>Sales details · <span class="ready-tag ' + (isAgentReady(design) ? '' : 'incomplete') + '">' + (isAgentReady(design) ? 'Agent ready' : 'Needs details') + '</span></summary>' +
+            '<div class="metadata-grid">' + metadataFields.map(([field, label]) =>
+              '<label>' + label + '<input data-meta="' + field + '" value="' + escapeHtml(design[field] ?? '') + '"' +
+              (field === 'width_cm' || field === 'moq_meters' ? ' type="number" min="0" step="any"' : ' maxlength="240"') + '></label>'
+            ).join('') +
+            '<label>Availability<select data-meta="availability">' +
+              [['unknown', 'Not checked'], ['available', 'Available'], ['low_stock', 'Low stock'], ['sold_out', 'Sold out']]
+                .map(([value, label]) => '<option value="' + value + '"' + ((design.availability || 'unknown') === value ? ' selected' : '') + '>' + label + '</option>').join('') +
+            '</select></label><button type="button" class="save-metadata">Save sales details</button></div></details>' +
+          '<div class="metadata-feedback" role="status" aria-live="polite"></div>' +
         "</div>";
       grid.appendChild(card);
       const input = card.querySelector("input");
       const btn = card.querySelector("button");
       const msg = card.querySelector(".saved");
       const visibility = card.querySelector(".visibility");
+      const saveMetadata = card.querySelector(".save-metadata");
+      const metadataDetails = card.querySelector(".metadata");
+      const metadataFeedback = card.querySelector(".metadata-feedback");
+      const fabricSelect = card.querySelector(".fabric-select");
+      const fabricFeedback = card.querySelector(".fabric-feedback");
+      card.querySelectorAll("[data-meta]").forEach((field) => {
+        field.addEventListener("input", () => { metadataFeedback.textContent = ""; });
+        field.addEventListener("change", () => { metadataFeedback.textContent = ""; });
+      });
+      saveMetadata.addEventListener("click", async () => {
+        const values = { designId: design.design_id };
+        card.querySelectorAll("[data-meta]").forEach((field) => { values[field.dataset.meta] = field.value.trim(); });
+        if (values.fabric_type === undefined) values.fabric_type = design.fabric_type || "";
+        saveMetadata.disabled = true;
+        metadataFeedback.className = "metadata-feedback";
+        metadataFeedback.textContent = "Saving sales details…";
+        try {
+          const response = await fetch(METADATA_API, {
+            method: "POST", headers: { "content-type": "application/json", "x-upload-key": keyInput.value.trim() },
+            body: JSON.stringify(values),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Save failed");
+          Object.assign(design, values);
+          metadataDetails.open = false;
+          metadataFeedback.className = "metadata-feedback success";
+          metadataFeedback.textContent = "Thanks for submitting sales details. Saved successfully.";
+          const tag = card.querySelector(".ready-tag");
+          tag.textContent = isAgentReady(design) ? "Agent ready" : "Needs details";
+          tag.classList.toggle("incomplete", !isAgentReady(design));
+          updateStats();
+        } catch (error) {
+          metadataFeedback.className = "metadata-feedback error";
+          metadataFeedback.textContent = error.message || "Could not save sales details. Please try again.";
+        }
+        saveMetadata.disabled = false;
+      });
+      fabricSelect.addEventListener("change", async () => {
+        const fabricType = fabricSelect.value;
+        fabricSelect.disabled = true;
+        fabricFeedback.className = "fabric-feedback";
+        fabricFeedback.textContent = "Saving fabric…";
+        const payload = {
+          designId: design.design_id,
+          title: design.title ?? "",
+          fabric_type: fabricType,
+          pattern: design.pattern ?? "",
+          colors: design.colors ?? "",
+          use_cases: design.use_cases ?? "",
+          composition: design.composition ?? "",
+          width_cm: design.width_cm ?? "",
+          moq_meters: design.moq_meters ?? "",
+          availability: design.availability || "unknown",
+          keywords: design.keywords ?? "",
+        };
+        try {
+          const response = await fetch(METADATA_API, {
+            method: "POST", headers: { "content-type": "application/json", "x-upload-key": keyInput.value.trim() },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Save failed");
+          design.fabric_type = fabricType;
+          fabricFeedback.className = "fabric-feedback success";
+          fabricFeedback.textContent = fabricType ? "Fabric saved: " + fabricType : "Fabric cleared";
+          const tag = card.querySelector(".ready-tag");
+          tag.textContent = isAgentReady(design) ? "Agent ready" : "Needs details";
+          tag.classList.toggle("incomplete", !isAgentReady(design));
+          updateStats();
+        } catch (error) {
+          fabricFeedback.className = "fabric-feedback error";
+          fabricFeedback.textContent = error.message || "Could not save fabric";
+          fabricSelect.value = design.fabric_type || "";
+        }
+        fabricSelect.disabled = false;
+      });
       btn.addEventListener("click", async () => {
         const raw = input.value.trim();
         const price = raw === "" ? null : Number(raw);
@@ -292,6 +423,9 @@
             btn.textContent = price != null ? "Update" : "Save";
             input.value = price != null ? String(price) : "";
             msg.textContent = price != null ? "Saved · ₹ " + price : "Removed";
+            const tag = card.querySelector(".ready-tag");
+            tag.textContent = isAgentReady(design) ? "Agent ready" : "Needs details";
+            tag.classList.toggle("incomplete", !isAgentReady(design));
             updateStats();
           } else {
             msg.textContent = d.error || "Failed";
@@ -327,6 +461,7 @@
   function updateStats() {
     statTotal.textContent = designs.length;
     statDone.textContent = designs.filter((design) => design.price != null).length;
+    statReady.textContent = designs.filter(isAgentReady).length;
   }
 
   async function init() {

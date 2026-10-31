@@ -62,3 +62,30 @@ CREATE TABLE IF NOT EXISTS designs (
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   active      INTEGER NOT NULL DEFAULT 1  -- 0 = hidden (soft delete)
 );
+
+-- Human-verified sales facts. Prices remain in the separate prices table.
+CREATE TABLE IF NOT EXISTS design_metadata (
+  design_id TEXT PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  fabric_type TEXT NOT NULL DEFAULT '',
+  pattern TEXT NOT NULL DEFAULT '',
+  colors TEXT NOT NULL DEFAULT '',
+  use_cases TEXT NOT NULL DEFAULT '',
+  composition TEXT NOT NULL DEFAULT '',
+  width_cm REAL,
+  moq_meters REAL,
+  availability TEXT NOT NULL DEFAULT 'unknown'
+    CHECK (availability IN ('unknown', 'available', 'low_stock', 'sold_out')),
+  keywords TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Video calls created by the Business OS calendar endpoint. The code links a
+-- customer-initiated WhatsApp message to the form phone without exposing it.
+CREATE TABLE IF NOT EXISTS video_call_bookings (
+  code TEXT PRIMARY KEY,
+  wa_id TEXT NOT NULL,
+  customer_name TEXT NOT NULL,
+  start_time TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
